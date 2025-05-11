@@ -1,3 +1,62 @@
+from typing import List, Dict, Any
+
+class GamePromptTemplate():
+    def __init__(self, template: Dict[str, str], action_names: List[str]):
+        self.game_header = template.get('game_header', "Interaction Scenario:\n")
+        self.player_header = template.get('player_header', "Evaluate your choices.\nIf you select:\n")
+        self.action_header = template.get('action_header', " {player_action}, consider the potential outcomes:\n")
+        self.payoff_line = template.get('payoff_line', "    Paired against {opponent_action}: Result = {payoff}")
+        self.opponent_payoff = template.get('opponent_payoff', " (Opponent Result: {opponent_payoff})")
+
+        self.observation_queue = template.get('observation_header', "Given that this is the current state of the game: {state}\n What plans and observations do you have?") 
+
+        # TODO: Add in the ability 
+        self.communication_queue = template.get('communication_header', "You may communicate with your opponent.\n")
+        self.communication_queue += template.get('communication_queue', "Input your message:")
+
+        self.newline = template.get('newline', "\n")
+
+        self.options = template.get('options', "Which will you choose? (0 for {action_zero}, 1 for {action_one}) ")
+        self.queue = template.get('queue', "Input your choice (0/1):")
+    
+        self.action_names = action_names
+
+
+    def format_observe_context(self, context: Dict[str, Any]) -> str:
+        prompt = self.prompt_intro(context['state']['payoff_dict'])
+        prompt += self.template['observation_header']
+        return prompt
+    
+    def format_observe_communication_context(self, context: Dict[str, Any]) -> str:
+        pass
+    def format_communicate_context(self, context: Dict[str, Any]) -> str:
+
+        for action_index in range(self.num_actions):
+            player_action = self.options[action_index]
+            prompt += self.template['action_header'].format(player_action=player_action)
+            for opponent_action_index in range(self.num_actions):
+                opponent_action = self.options[opponent_action_index]
+                payoff = payoff_dict[0, action_index, opponent_action_index] # TODO: Make this work for both players
+                prompt += self.vtemplate['payoff_line'].format(
+                    opponent_action=opponent_action,
+                    payoff=payoff
+                )
+                
+                if include_opponent_payoff:
+                    opponent_payoff = payoff_dict[1, opponent_action_index, action_index] # TODO: Make this work for both players
+                    prompt += self.template['opponent_payoff'].format(opponent_payoff=opponent_payoff)
+                
+                prompt += self.template['newline']
+
+        prompt += self.template['options'].format(action_zero=self.options[0], action_one=self.options[1])
+        prompt += self.template['queue']
+        prompt += " "
+        return prompt
+
+    def format_action_context(self, context: Dict[str, Any]) -> str:
+        pass
+    
+
 # 1. Classic Neutral / Abstract
 action_names_neutral = ["Action A", "Action B"]
 template_neutral = {

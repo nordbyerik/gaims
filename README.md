@@ -9,4 +9,4 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 
 3.) Run the code
-uv run gaims/main.py
+uv run main.py

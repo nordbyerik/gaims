@@ -51,16 +51,29 @@ class Model(ABC):
         self.model_name = model_name
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
-        """Sends message to model and returns the parsed response."""
+        """
+        Sends a message to the language model and returns the response, optionally parsed into a Pydantic model.
+
+        Args:
+            message: The primary message content to send to the model.
+            structure: An optional class. If provided, the model's response
+                       will be parsed into an instance of this class.
+            system_prompt: An optional system message to guide the model's behavior.
+
+        Returns:
+            If `structure` is provided, returns an instance of the `structure` BaseModel.
+            Otherwise, returns the raw string response from the model.
+
+        Raises:
+            StructureParsingException: If the raw response content cannot be converted to the structure.
+            ValueError: If the generation begin token is not found in the model's response.
+        """
         log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         messages.append(HumanMessage(content=message))
-
-        prompt_messages = [self.llm._convert_input(messages)]
-        prompt_messages = [p.to_messages() for p in prompt_messages]
 
         tokenizer = self.llm.llm.pipeline.tokenizer
 
@@ -73,7 +86,21 @@ class Model(ABC):
         return response_content
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel, tokenizer: PreTrainedTokenizer) -> BaseModel:
-        """"""
+        """
+        Handles sending messages to the LLM when a structured response is expected.
+
+        Args:
+            messages: A list of BaseMessage objects to send to the LLM.
+            structure: The Pydantic BaseModel class to parse the response into.
+            tokenizer: The tokenizer used for cleaning the model's response.
+
+        Returns:
+            An instance of the provided `structure` BaseModel with data from the LLM's response.
+
+        Raises:
+            StructureParsingException: If the raw response content cannot be converted to the structure.
+            ValueError: If the generation begin token is not found in the model's response.
+        """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
         
@@ -96,25 +123,55 @@ class Model(ABC):
             )
 
     def _handle_unstructured_response(self, messages: list[BaseMessage], tokenizer: PreTrainedTokenizer) -> str:
+        """
+        Handles sending messages to the LLM when an unstructured string response is expected.
+
+        Args:
+            messages: A list of BaseMessage objects (system and human messages) to send to the LLM.
+            tokenizer: The tokenizer used for cleaning the model's response.
+
+        Returns:
+            A string containing the cleaned response content from the LLM.
+
+        Raises:
+            ValueError: If the generation prompt is not found in the model's response
+                        during the cleaning process.
+        """
         response_message = self.llm.invoke(messages)
         response_content = response_message.content
         response_content = self._clean_model_tags(response_content, tokenizer)
 
 
     def _clean_model_tags(self, text: str, tokenizer: PreTrainedTokenizer) -> str:
-        """Remove model-specific formatting tags from the response text."""
+        """
+        Extracts and cleans the model's generated text from the raw response.
+
+        Args:
+            text: The raw response text from the model.
+            tokenizer: The tokenizer associated with the model, used to identify
+                       the generation prompt and special tokens.
+
+        Returns:
+            The cleaned text string.
+
+        Raises:
+            ValueError: If `tokenizer.apply_chat_template` does not produce a string found within 
+                        the input `text`.
+        """
         # Get the generation prompt and remove everything prior to it
         messages_start = tokenizer.apply_chat_template("", tokenize=False, add_generation_prompt=True)        
         if messages_start in text:
             cleaned_text = text.split(messages_start)[-1]
         else:
-            cleaned_text = text
+            raise ValueError("Generation prompt not found in the response text.")
 
         # Strip any additional special tokens
         token_ids = tokenizer.encode(cleaned_text, add_special_tokens=False)
         cleaned_text = tokenizer.decode(token_ids, skip_special_tokens=True)
 
-        return cleaned_text.strip()
+        cleaned_text = cleaned_text.strip()
+
+        return cleaned_text
 
 
     def observe(self, message: str, **kwargs) -> str: # type: ignore

@@ -21,7 +21,7 @@ class PromptConfig(ABC):
         self.observation_format = template.get('observation_format', "Here are the prior observations you've made: {observations}\n")
 
         # Communication section
-        self.communication_header = template.get('communication_header', "You may communicate with your opponent.\n")
+        self.communication_header = template.get('communication_header', "You may send a message to others. You can choose from this list of: {adjacency_list}\n")
         self.communication_cue = template.get('communication_cue', "Input your message:")
 
         # Communication observation section
@@ -64,7 +64,7 @@ class PromptConfig(ABC):
 
     def format_communicate_context(self, context: Dict[str, Any]) -> str:
         prompt = self.prompt_intro(context)
-        prompt += self.communication_header
+        prompt += self.communication_header.format(adjacency_list=context['adjacency_list'])
         prompt += self.communication_cue
         return prompt
 

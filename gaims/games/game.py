@@ -54,7 +54,8 @@ class Game(ABC):
             "agent_id": agent_id,
             # TODO: Just pass the config as a whole
             "num_rounds": self.config.num_rounds,
-            "num_actions": self.config.num_actions
+            "num_actions": self.config.num_actions,
+            "adjacency_list": self.communication_medium.adjacency_list
         }
 
     def observe(self):

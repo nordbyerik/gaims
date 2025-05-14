@@ -39,6 +39,7 @@ from langchain_core.messages.tool import tool_call_chunk as create_tool_call_chu
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.output_parsers.openai_tools import (
     JsonOutputKeyToolsParser,
+    PydanticToolsParser,
     make_invalid_tool_call,
     parse_tool_call,
 )
@@ -774,13 +775,12 @@ class ChatHuggingFace(BaseChatModel):
             endpoint_url: Optional[str] = self.llm.inference_server_url
         elif _is_huggingface_pipeline(self.llm):
             from transformers import AutoTokenizer  # type: ignore[import]
-
+            self.model_id = self.llm.model_id
             self.tokenizer = (
                 AutoTokenizer.from_pretrained(self.model_id)
                 if self.tokenizer is None
                 else self.tokenizer
             )
-            self.model_id = self.llm.model_id
             return
         elif _is_huggingface_endpoint(self.llm):
             self.model_id = self.llm.repo_id or self.llm.model
@@ -927,8 +927,8 @@ class ChatHuggingFace(BaseChatModel):
                 },
             )
             if is_pydantic_schema:
-                raise NotImplementedError(
-                    "Pydantic schema is not supported for function calling"
+                output_parser: OutputParserLike = PydanticToolsParser(
+                    tools=[schema], first_tool_only=True
                 )
             else:
                 output_parser: Union[JsonOutputKeyToolsParser, JsonOutputParser] = (

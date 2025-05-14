@@ -46,11 +46,12 @@ class CommunicationMedium(ABC):
       for rec in receiver:
         if rec not in self.messages[sender]: 
           self.messages[sender][rec] = []
+        self.messages[sender][rec].append(msg_obj)
     elif receiver not in self.messages[sender]:
-        self.messages[sender][receiver] = []
+        if receiver not in self.messages[sender]:
+          self.messages[sender][receiver] = []
+        self.messages[sender][rec].append(msg_obj)
 
-    for rec in receiver:
-      self.messages[sender][rec].append(msg_obj)
 
     self.message_history.append((sender, receiver, msg_obj)) # Store the actual message object
     return msg_obj

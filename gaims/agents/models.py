@@ -16,6 +16,8 @@ from communication.communication import Message
 from pydantic import BaseModel, Field
 from typing import Literal, List
 
+import torch
+
 log = logging.getLogger(__name__)
 logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
 
@@ -49,9 +51,10 @@ class Model(ABC):
         structure = structure
 
         if structure is not None:
-            llm = self.llm.with_structured_output(structure)
+            llm = self.llm.with_structured_output(structure, include_raw=True)
         else:
             llm = self.llm
+
 
         response = llm.invoke(messages)
         log.info(f"{self._identifier} -->: {response}")
@@ -82,23 +85,16 @@ class LocalModel(Model):
                  ):
         super().__init__(identifier, model)
         
-        pipe = HuggingFacePipeline.from_model_id(
-            model_id="Qwen/Qwen3-0.6B",
-            task="text-generation",
-            # device=0,  # replace with device_map="auto" to use the accelerate library.
-            pipeline_kwargs={"max_new_tokens": 100, "pad_token_id":0},
-        )
 
-        from langchain_huggingface import HuggingFaceEndpoint
-        llm = HuggingFaceEndpoint(
-            repo_id="Qwen/Qwen3-0.6B",
-            task="text-generation",
-            max_new_tokens=512,
-            do_sample=False,
-            repetition_penalty=1.03,
-        )
 
-        self.llm = ChatHuggingFace(llm=llm)
+        tokenizer = AutoTokenizer.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
+        model = AutoModelForCausalLM.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
+        pipe = pipeline(
+            "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=10
+        )
+        hf = HuggingFacePipeline(pipeline=pipe)
+
+        self.llm = ChatHuggingFace(llm=hf)
     
     def get_activations(self, layer):
         return self.hooks[layer].activations[:, -1, :].detach().cpu()

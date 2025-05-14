@@ -16,7 +16,7 @@ from communication.communication import Message
 from pydantic import BaseModel, Field
 from typing import Literal, List
 
-import torch
+import re
 
 log = logging.getLogger(__name__)
 logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
@@ -53,14 +53,18 @@ class Model(ABC):
         # TODO: Handle this templating so that we retry with the raw outputs
         if structure is not None:
             llm = self.llm.with_structured_output(structure, include_raw=True)
+            full_response = llm.invoke(messages)
+            response = full_response.parsed
+            if response is None:
+                response = full_response.raw
+                # Use regex to extract the assistant's response
+                response = re.search(r"<|assistant|>(.*)<|assistant|>", response).group(1)
+                response = structure(**response)
         else:
             llm = self.llm
+            response = llm.invoke(messages)
 
 
-        response = llm.invoke(messages)
-
-        if structure is not None:
-            response = 
 
         log.info(f"{self._identifier} -->: {response}")
         return response
@@ -95,7 +99,7 @@ class LocalModel(Model):
         tokenizer = AutoTokenizer.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
         model = AutoModelForCausalLM.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
         pipe = pipeline(
-            "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=10
+            "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=520
         )
         hf = HuggingFacePipeline(pipeline=pipe)
 

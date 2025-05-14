@@ -5,8 +5,9 @@ import string
 from abc import ABC
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFacePipeline, ChatHuggingFace # Corrected import name if it was an issue
+from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
 from langchain_core.messages import SystemMessage, HumanMessage
+from utils.huggingface_langchain import ChatHuggingFace
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
@@ -15,7 +16,7 @@ from games.action import Action # type: ignore
 from communication.communication import Message # type: ignore
 
 from pydantic import BaseModel, Field
-from typing import Literal, List # type: ignore
+from typing import List # type: ignore
 import torch
 
 import re

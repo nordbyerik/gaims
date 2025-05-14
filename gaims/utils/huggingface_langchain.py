@@ -59,8 +59,9 @@ from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
-from ..llms.huggingface_endpoint import HuggingFaceEndpoint
-from ..llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_huggingface.llms.huggingface_endpoint import HuggingFaceEndpoint
+from langchain_huggingface.llms.huggingface_pipeline import HuggingFacePipeline
+
 
 
 @dataclass

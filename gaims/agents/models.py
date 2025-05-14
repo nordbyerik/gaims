@@ -5,16 +5,18 @@ import string
 from abc import ABC
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFacePipeline, ChatHuggingFace
+from langchain_huggingface import HuggingFacePipeline, ChatHuggingFace # Corrected import name if it was an issue
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-from games.action import Action
-from communication.communication import Message
+# Assuming these are correctly defined in your project structure
+from games.action import Action # type: ignore
+from communication.communication import Message # type: ignore
 
 from pydantic import BaseModel, Field
-from typing import Literal, List
+from typing import Literal, List # type: ignore
+import torch
 
 import re
 
@@ -29,96 +31,151 @@ class ActionStructure(BaseModel):
     action_id: int = Field(description="The action to take")
 
 class ModelConfig():
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str): # model_name here is the HF repo ID or "gemini"
         self.model_name = model_name
-
 
 class Model(ABC):
     def __init__(self, identifier: str | None = None, model_name: str = "unsloth/Llama-3.2-3B-Instruct"):
-        self._identifier = identifier or "".join(
+        self._identifier = identifier if identifier is not None else "".join(
             random.choices(string.ascii_lowercase, k=5)
         )
+        # For local models, model_name will store the Hugging Face repository ID
         self.model_name = model_name
 
-    def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel:
+    def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
         log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
-        
+
         messages.append(HumanMessage(content=message))
-        structure = structure
+        # Structure assignment was redundant: structure_arg = structure
 
-        # TODO: Handle this templating so that we retry with the raw outputs
+        response_data: str | BaseModel = "" # type: ignore
+
         if structure is not None:
-            llm = self.llm.with_structured_output(structure, include_raw=True)
-            full_response = llm.invoke(messages)
-            response = full_response.parsed
-            if response is None:
-                response = full_response.raw
-                # Use regex to extract the assistant's response
-                response = re.search(r"<|assistant|>(.*)<|assistant|>", response).group(1)
-                response = structure(**response)
+            # Ensure self.llm is not None
+            if self.llm is None:
+                raise ValueError("LLM not initialized")
+            llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
+            full_response = llm_with_structure.invoke(messages)
+            parsed_response = full_response.get("parsed") # Access 'parsed' safely
+
+            if parsed_response is None:
+                raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
+                # Attempt to extract from raw if parsing failed
+                match = re.search(r"<|assistant|>(.*?)<|assistant|>", str(raw_response_content), re.DOTALL)
+                if match:
+                    try:
+                        # This part is risky as it assumes the extracted string is valid JSON for the Pydantic model
+                        extracted_json_str = match.group(1).strip()
+                        response_data = structure.model_validate_json(extracted_json_str) # type: ignore
+                    except Exception as e:
+                        log.error(f"Failed to parse extracted content into structure: {e}")
+                        response_data = str(raw_response_content) # Fallback to raw string
+                else:
+                    response_data = str(raw_response_content) # Fallback to raw string
+            else:
+                response_data = parsed_response
         else:
-            llm = self.llm
-            response = llm.invoke(messages)
+            if self.llm is None:
+                raise ValueError("LLM not initialized")
+            response_message = self.llm.invoke(messages) # type: ignore
+            response_data = response_message.content
 
 
+        log.info(f"{self._identifier} -->: {response_data}")
+        return response_data
 
-        log.info(f"{self._identifier} -->: {response}")
+
+    def observe(self, message: str, **kwargs) -> str: # type: ignore
+        # Assuming observe is meant to return a string response directly
+        response = self.send_message(message, **kwargs)
+        if not isinstance(response, str):
+            # Handle cases where a structured response might be returned but a string is expected
+            # This might involve serializing the BaseModel or accessing a specific field
+            return str(response)
         return response
 
-    def observe(self, message: str, **kwargs) -> str:
-        return self.send_message(message, **kwargs)
-    
-    def communicate(self, message: str, **kwargs) -> Message:
-        # TODO: Make this more complex
+
+    def communicate(self, message: str, **kwargs) -> Message: # type: ignore
         response = self.send_message(message, structure=MessageStructure, **kwargs)
-        return response
-    
-    def act(self, message: str, **kwargs) -> Action:
-        response = self.send_message(message, structure=ActionStructure, **kwargs)
-        return response
+        if not isinstance(response, MessageStructure):
+             # Handle error or convert if possible, e.g. if response is raw string due to parsing fail
+            raise TypeError(f"Expected MessageStructure, got {type(response)}")
+        return Message(content=response.message, recipient=response.recipient) # type: ignore
 
-    
+
+    def act(self, message: str, **kwargs) -> Action: # type: ignore
+        response = self.send_message(message, structure=ActionStructure, **kwargs)
+        if not isinstance(response, ActionStructure):
+            # Handle error or convert
+            raise TypeError(f"Expected ActionStructure, got {type(response)}")
+        return Action(action_id=response.action_id) # type: ignore
+
+
 class GeminiModel(Model):
-    def __init__(self, identifier: str | None = None, model: str = "gemini-2.0-flash"):
-        super().__init__(identifier, model)
-        self.llm = ChatGoogleGenerativeAI(model=model, api_key=os.getenv("GEMINI_API_KEY"))
-    
+    def __init__(self, identifier: str | None = None, model: str = "gemini-1.5-flash"): # Updated default model
+        super().__init__(identifier, model) # Pass model string (e.g. "gemini-1.5-flash") as model_name
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set.")
+        self.llm = ChatGoogleGenerativeAI(model=self.model_name, google_api_key=gemini_api_key) # Use self.model_name
+
 
 class LocalModel(Model):
-    def __init__(self, identifier: str | None = None, 
-                 model: str = "EleutherAI/pythia-14m" #google/gemma-3-1b-it
-                 ):
-        super().__init__(identifier, model)
-        
+    # Parameter 'hf_repo_id' is the string like "microsoft/Phi-3-mini-4k-instruct"
+    def __init__(self, hf_repo_id: str):
+        # Pass hf_repo_id as both the instance identifier and the model_name to the base class.
+        super().__init__(identifier=hf_repo_id, model_name=hf_repo_id)
 
-
-        tokenizer = AutoTokenizer.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
-        model = AutoModelForCausalLM.from_pretrained('microsoft/Phi-3-mini-4k-instruct')
-        pipe = pipeline(
-            "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=520
+        # Load tokenizer and model using the provided hf_repo_id
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name) # Use self.model_name (which is hf_repo_id)
+        model_for_pipeline = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            torch_dtype=torch.float16,
+            load_in_8bit=True
         )
-        hf = HuggingFacePipeline(pipeline=pipe)
+        
+        pipe = pipeline(
+            "text-generation", model=model_for_pipeline, tokenizer=tokenizer, max_new_tokens=520
+        )
+        hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
-        self.llm = ChatHuggingFace(llm=hf)
-    
-    def get_activations(self, layer):
-        return self.hooks[layer].activations[:, -1, :].detach().cpu()
-    
+        # CRITICAL FIX: Explicitly pass the hf_repo_id as model_id to ChatHuggingFace.
+        self.llm = ChatHuggingFace(llm=hf_pipeline_wrapper, model_id=self.model_name)
+
+    def get_activations(self, layer): # type: ignore
+        # This method relies on 'self.hooks' which is not defined in the provided code.
+        # It needs to be properly initialized if this functionality is to be used.
+        # For example, hooks might be attached to 'model_for_pipeline' during its setup.
+        if hasattr(self, 'hooks') and self.hooks and layer in self.hooks: # type: ignore
+             return self.hooks[layer].activations[:, -1, :].detach().cpu() # type: ignore
+        log.warning(f"Hooks not found or layer '{layer}' not in hooks for model {self.model_name}")
+        return None
+
 
 global model_registry
-model_registry = {}
+model_registry = {} # type: ignore
 
 class ModelFactory:
     @staticmethod
     def create_model(model_config: ModelConfig) -> Model:
-        if model_config.model_name == "gemini":
-            return GeminiModel()
+        requested_model_name = model_config.model_name # This is "gemini" or an HF repo_id
+
+        if requested_model_name == "gemini":
+            # You might want to allow specifying the exact Gemini model via ModelConfig
+            # e.g., if model_config could have model_config.gemini_model_version
+            # For now, using the default in GeminiModel or a fixed one here.
+            if "gemini" not in model_registry: # Cache Gemini model instance as well
+                model_registry["gemini"] = GeminiModel(identifier="gemini_default_instance", model="gemini-1.5-flash")
+            return model_registry["gemini"]
         else:
-            if model_config.model_name not in model_registry:
-                model_registry[model_config.model_name] = LocalModel(model_config.model_name) 
-            return model_registry[model_config.model_name]
-        
+            # requested_model_name is treated as a Hugging Face repo_id
+            hf_repo_id = requested_model_name
+
+            if hf_repo_id not in model_registry:
+                # Pass the hf_repo_id to LocalModel constructor
+                model_registry[hf_repo_id] = LocalModel(hf_repo_id=hf_repo_id)
+            return model_registry[hf_repo_id]

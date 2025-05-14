@@ -25,7 +25,7 @@ class Agent():
 
     def observe(self, context: Dict[str, Any]) -> None:
         formatted_context = self.prompt_config.format_observe_context(context)
-        llm_repsonse = self.model.observe(formatted_context)
+        llm_repsonse = self.model.observe(formatted_context, system_prompt=self.persona)
         self.observations.append(llm_repsonse) # TODO: Add better observation management      
 
     def observe_communication(self, context: Dict[str, Any]) -> None:

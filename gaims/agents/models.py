@@ -6,10 +6,11 @@ from abc import ABC
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from utils.huggingface_langchain import ChatHuggingFace
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import PreTrainedTokenizer
 
 # Assuming these are correctly defined in your project structure
 from games.action import Action # type: ignore
@@ -23,6 +24,12 @@ import re
 
 log = logging.getLogger(__name__)
 logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+
+class StructureParsingException(Exception):
+    def __init__(self, message: str, value: str, structure: BaseModel):
+        super().__init__(message)
+        self.value = value
+        self.structure = structure
 
 class MessageStructure(BaseModel):
     message: str = Field(description="The message to send")
@@ -44,74 +51,69 @@ class Model(ABC):
         self.model_name = model_name
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
+        """Sends message to model and returns the parsed response."""
         log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
-
         messages.append(HumanMessage(content=message))
-        # Structure assignment was redundant: structure_arg = structure
 
-        response_data: str | BaseModel = "" # type: ignore
+        prompt_messages = [self.llm._convert_input(messages)]
+        prompt_messages = [p.to_messages() for p in prompt_messages]
+
+        tokenizer = self.llm.llm.pipeline.tokenizer
 
         if structure is not None:
-            # Ensure self.llm is not None
-            if self.llm is None:
-                raise ValueError("LLM not initialized")
-            llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
-            full_response = llm_with_structure.invoke(messages)
-            parsed_response = full_response.get("parsed") # Access 'parsed' safely
-
-            if parsed_response is None:
-                raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
-                # Attempt to extract from raw if parsing failed
-                match = re.search(r"<|assistant|>(.*?)<|assistant|>", str(raw_response_content), re.DOTALL)
-                if match:
-                    try:
-                        # This part is risky as it assumes the extracted string is valid JSON for the Pydantic model
-                        extracted_json_str = match.group(1).strip()
-                        response_data = structure.model_validate_json(extracted_json_str) # type: ignore
-                    except Exception as e:
-                        log.error(f"Failed to parse extracted content into structure: {e}")
-                        response_data = str(raw_response_content) # Fallback to raw string
-                else:
-                    response_data = str(raw_response_content) # Fallback to raw string
-            else:
-                response_data = parsed_response
+            response_content = self._handle_structured_response(messages, structure, tokenizer)
         else:
-            if self.llm is None:
-                raise ValueError("LLM not initialized")
-            response_message = self.llm.invoke(messages) # type: ignore
-            response_content = response_message.content
-            
-            # Clean up response content by removing model formatting tags
-            if isinstance(response_content, str):
-                # Remove common model formatting tags
-                response_content = self._clean_model_tags(response_content)
-            
-            response_data = response_content
+            response_content = self._handle_unstructured_response(messages, tokenizer)
 
-        log.info(f"{self._identifier} -->: {response_data}")
-        return response_data
+        log.info(f"{self._identifier} -->: {response_content}")
+        return response_content
 
-    def _clean_model_tags(self, text: str) -> str:
+    def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel, tokenizer: PreTrainedTokenizer) -> BaseModel:
+        """"""
+        llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
+        full_response = llm_with_structure.invoke(messages)
+        
+        # If parsed return 
+        if parsed := full_response.get("parsed"):
+            return parsed
+
+        # Manually parse response
+        raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
+        raw_response_content = self._clean_model_tags(raw_response_content, tokenizer)
+        
+        try:
+            return structure.model_validate_json(raw_response_content) # type: ignore
+        except Exception as e:
+            log.error(f"Failed to parse extracted content into structure: {e}")
+            raise  StructureParsingException(
+                f"Failed to parse extracted content into structure: {e}", 
+                raw_response_content, 
+                structure
+            )
+
+    def _handle_unstructured_response(self, messages: list[BaseMessage], tokenizer: PreTrainedTokenizer) -> str:
+        response_message = self.llm.invoke(messages)
+        response_content = response_message.content
+        response_content = self._clean_model_tags(response_content, tokenizer)
+
+
+    def _clean_model_tags(self, text: str, tokenizer: PreTrainedTokenizer) -> str:
         """Remove model-specific formatting tags from the response text."""
-        # Remove tags like <|system|>, <|assistant|>, etc.
-        cleaned_text = re.sub(r'<\|[a-zA-Z]+\|>', '', text)
-        
-        # Handle more complex patterns with content between tags
-        # This pattern matches <|tag|>content</|tag|> and extracts just the content
-        pattern = r'<\|([a-zA-Z]+)\|>(.*?)<\/\|\1\|>'
-        matches = re.findall(pattern, text, re.DOTALL)
-        
-        if matches:
-            for tag, content in matches:
-                if tag == "assistant":
-                    # If we find an assistant tag with content, prioritize returning just that content
-                    return content.strip()
-        
-        # If no specific assistant content was found, return the cleaned text
+        # Get the generation prompt and remove everything prior to it
+        messages_start = tokenizer.apply_chat_template("", tokenize=False, add_generation_prompt=True)        
+        if messages_start in text:
+            cleaned_text = text.split(messages_start)[-1]
+        else:
+            cleaned_text = text
+
+        # Strip any additional special tokens
+        token_ids = tokenizer.encode(cleaned_text, add_special_tokens=False)
+        cleaned_text = tokenizer.decode(token_ids, skip_special_tokens=True)
+
         return cleaned_text.strip()
 
 

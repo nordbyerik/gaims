@@ -50,6 +50,7 @@ class Model(ABC):
         messages.append(HumanMessage(content=message))
         structure = structure
 
+        # TODO: Handle this templating so that we retry with the raw outputs
         if structure is not None:
             llm = self.llm.with_structured_output(structure, include_raw=True)
         else:
@@ -57,6 +58,10 @@ class Model(ABC):
 
 
         response = llm.invoke(messages)
+
+        if structure is not None:
+            response = 
+
         log.info(f"{self._identifier} -->: {response}")
         return response
 
@@ -100,11 +105,16 @@ class LocalModel(Model):
         return self.hooks[layer].activations[:, -1, :].detach().cpu()
     
 
+global model_registry
+model_registry = {}
+
 class ModelFactory:
     @staticmethod
     def create_model(model_config: ModelConfig) -> Model:
-        if model_config.model_name == "local":
-            return LocalModel() 
-        else:
+        if model_config.model_name == "gemini":
             return GeminiModel()
+        else:
+            if model_config.model_name not in model_registry:
+                model_registry[model_config.model_name] = LocalModel(model_config.model_name) 
+            return model_registry[model_config.model_name]
         

@@ -4,7 +4,7 @@
 from copy import copy
 from dataclasses import dataclass, field
 import logging
-from models import Model
+from agents.models import Model
 
 log = logging.getLogger("hot")
 

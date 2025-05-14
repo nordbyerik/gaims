@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run main.py (Project Root)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/gaims/main.py", // Points to main.py at the root
+            "cwd": "${workspaceFolder}/gaims",             // Executes from the project root
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

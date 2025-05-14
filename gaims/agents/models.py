@@ -43,58 +43,76 @@ class Model(ABC):
         # For local models, model_name will store the Hugging Face repository ID
         self.model_name = model_name
 
-    def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel:
+    def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
         log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
+
         messages.append(HumanMessage(content=message))
+        # Structure assignment was redundant: structure_arg = structure
 
-        response_data: str | BaseModel = ""
-
-        if self.llm is None:
-            raise ValueError("LLM not initialized")
+        response_data: str | BaseModel = "" # type: ignore
 
         if structure is not None:
-            llm_with_structure = self.llm.with_structured_output(structure, include_raw=True)
+            # Ensure self.llm is not None
+            if self.llm is None:
+                raise ValueError("LLM not initialized")
+            llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
             full_response = llm_with_structure.invoke(messages)
-            parsed_response = full_response.get("parsed")
+            parsed_response = full_response.get("parsed") # Access 'parsed' safely
 
             if parsed_response is None:
-                raw_response = full_response.get("raw", HumanMessage(content=""))
-                raw_content = raw_response.content if isinstance(raw_response, BaseMessage) else str(raw_response)
-                # Improved parsing: Extract content between assistant tags or fallback to raw content
-                match = re.search(r"<\|assistant\|>(.*?)(?:<\|assistant\|>|$)", raw_content, re.DOTALL)
+                raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
+                # Attempt to extract from raw if parsing failed
+                match = re.search(r"<|assistant|>(.*?)<|assistant|>", str(raw_response_content), re.DOTALL)
                 if match:
                     try:
-                        extracted_content = match.group(1).strip()
-                        response_data = structure.model_validate_json(extracted_content)
+                        # This part is risky as it assumes the extracted string is valid JSON for the Pydantic model
+                        extracted_json_str = match.group(1).strip()
+                        response_data = structure.model_validate_json(extracted_json_str) # type: ignore
                     except Exception as e:
                         log.error(f"Failed to parse extracted content into structure: {e}")
-                        # Fallback: Clean raw content of tags
-                        cleaned_content = re.sub(r"<\|(?:system|assistant)\|>", "", raw_content).strip()
-                        response_data = cleaned_content
+                        response_data = str(raw_response_content) # Fallback to raw string
                 else:
-                    # No assistant tags found, clean and use raw content
-                    cleaned_content = re.sub(r"<\|(?:system|assistant)\|>", "", raw_content).strip()
-                    response_data = cleaned_content
+                    response_data = str(raw_response_content) # Fallback to raw string
             else:
                 response_data = parsed_response
         else:
-            response_message = self.llm.invoke(messages)
-            if isinstance(response_message, BaseMessage):
-                # Directly use the content if it's a LangChain message
-                response_data = response_message.content.strip()
-            else:
-                # Handle raw string response, remove tags
-                raw_content = str(response_message)
-                match = re.search(r"<\|assistant\|>(.*?)(?:<\|assistant\|>|$)", raw_content, re.DOTALL)
-                response_data = match.group(1).strip() if match else re.sub(r"<\|(?:system|assistant)\|>", "", raw_content).strip()
+            if self.llm is None:
+                raise ValueError("LLM not initialized")
+            response_message = self.llm.invoke(messages) # type: ignore
+            response_content = response_message.content
+            
+            # Clean up response content by removing model formatting tags
+            if isinstance(response_content, str):
+                # Remove common model formatting tags
+                response_content = self._clean_model_tags(response_content)
+            
+            response_data = response_content
 
         log.info(f"{self._identifier} -->: {response_data}")
         return response_data
 
+    def _clean_model_tags(self, text: str) -> str:
+        """Remove model-specific formatting tags from the response text."""
+        # Remove tags like <|system|>, <|assistant|>, etc.
+        cleaned_text = re.sub(r'<\|[a-zA-Z]+\|>', '', text)
+        
+        # Handle more complex patterns with content between tags
+        # This pattern matches <|tag|>content</|tag|> and extracts just the content
+        pattern = r'<\|([a-zA-Z]+)\|>(.*?)<\/\|\1\|>'
+        matches = re.findall(pattern, text, re.DOTALL)
+        
+        if matches:
+            for tag, content in matches:
+                if tag == "assistant":
+                    # If we find an assistant tag with content, prioritize returning just that content
+                    return content.strip()
+        
+        # If no specific assistant content was found, return the cleaned text
+        return cleaned_text.strip()
 
 
     def observe(self, message: str, **kwargs) -> str: # type: ignore

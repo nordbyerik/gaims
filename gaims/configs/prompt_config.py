@@ -1,60 +1,95 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
+from abc import ABC
+import torch
 
-class GamePromptTemplate():
+class PromptConfig(ABC):
+    # TODO: Set this up for generalized games
     def __init__(self, template: Dict[str, str], action_names: List[str]):
         self.game_header = template.get('game_header', "Interaction Scenario:\n")
+
+        # Action section
         self.player_header = template.get('player_header', "Evaluate your choices.\nIf you select:\n")
         self.action_header = template.get('action_header', " {player_action}, consider the potential outcomes:\n")
         self.payoff_line = template.get('payoff_line', "    Paired against {opponent_action}: Result = {payoff}")
         self.opponent_payoff = template.get('opponent_payoff', " (Opponent Result: {opponent_payoff})")
+        self.options = template.get('options', "Which will you choose? (0 for {action_zero}, 1 for {action_one}) ")
+        self.cue = template.get('cue', "Input your choice (0/1):")
 
-        self.observation_queue = template.get('observation_header', "Given that this is the current state of the game: {state}\n What plans and observations do you have?") 
+        # Observation section
+        self.observation_header = template.get('observation_header', "Here is the current state of the game: {state}\n ") 
+        self.observation_cue = template.get('observation_cue', "Given that, write down your plans and observations.")
+        self.observation_format = template.get('observation_format', "Here are the prior observations you've made: {observations}\n")
 
-        # TODO: Add in the ability 
-        self.communication_queue = template.get('communication_header', "You may communicate with your opponent.\n")
-        self.communication_queue += template.get('communication_queue', "Input your message:")
+        # Communication section
+        self.communication_header = template.get('communication_header', "You may communicate with your opponent.\n")
+        self.communication_cue = template.get('communication_cue', "Input your message:")
+
+        # Communication observation section
+        self.communication_observation_header = template.get('communication_observation_header', "Here are what your opponents said:\n")
+        self.communication_observation_message_line = template.get('communication_observation_message_line', "Player {sender} said: {message}\n ")
+        self.communication_observation_cue = template.get('communication_observation_cue', "Given that, write down your plans and observations.")
 
         self.newline = template.get('newline', "\n")
 
-        self.options = template.get('options', "Which will you choose? (0 for {action_zero}, 1 for {action_one}) ")
-        self.queue = template.get('queue', "Input your choice (0/1):")
+        self.action_names = template.get('action_names', ["Cooperate", "Defect"])
     
-        self.action_names = action_names
 
+    def prompt_intro(self, context) -> str:
+        prompt = self.game_header
+        prompt += self.observation_format.format(observations=context['agent_observations'])
+        return prompt
+    
 
     def format_observe_context(self, context: Dict[str, Any]) -> str:
-        prompt = self.prompt_intro(context['state']['payoff_dict'])
-        prompt += self.template['observation_header']
+        prompt = self.prompt_intro(context)
+        prompt += self.observation_header.format(state=context['state'])
+        prompt += self.observation_cue
         return prompt
     
     def format_observe_communication_context(self, context: Dict[str, Any]) -> str:
-        pass
-    def format_communicate_context(self, context: Dict[str, Any]) -> str:
+        prompt = self.prompt_intro(context)
+        
+        prompt += self.communication_observation_header
+                                                               
+        
+        messages = ""
+        for idx, message in context['messages'].items():
+            for msg in message:
+                messages += self.communication_observation_message_line.format(
+                    sender=msg.sender, receiver=msg.receiver, message=msg.message
+                    ) + self.newline
 
-        for action_index in range(self.num_actions):
-            player_action = self.options[action_index]
-            prompt += self.template['action_header'].format(player_action=player_action)
-            for opponent_action_index in range(self.num_actions):
-                opponent_action = self.options[opponent_action_index]
-                payoff = payoff_dict[0, action_index, opponent_action_index] # TODO: Make this work for both players
-                prompt += self.vtemplate['payoff_line'].format(
+        prompt += self.communication_observation_cue
+        return prompt
+
+    def format_communicate_context(self, context: Dict[str, Any]) -> str:
+        prompt = self.prompt_intro(context)
+        prompt += self.communication_header
+        prompt += self.communication_cue
+        return prompt
+
+    def format_action_context(self, context: Dict[str, Any]) -> str:
+        prompt = self.prompt_intro(context)
+        for action_index in range(context['num_actions']):
+            player_action = self.action_names[action_index]
+            prompt += self.action_header.format(player_action=player_action)
+            for opponent_action_index in range(context['num_actions']):
+                opponent_action = self.action_names[opponent_action_index]
+                payoff = torch.tensor(context['state']['payoff_matrix'])[0, action_index, opponent_action_index] # TODO: Make this work for both players
+                prompt += self.payoff_line.format(
                     opponent_action=opponent_action,
                     payoff=payoff
                 )
                 
-                if include_opponent_payoff:
-                    opponent_payoff = payoff_dict[1, opponent_action_index, action_index] # TODO: Make this work for both players
-                    prompt += self.template['opponent_payoff'].format(opponent_payoff=opponent_payoff)
+                opponent_payoff = context['state']['payoff_matrix'][1, opponent_action_index, action_index] # TODO: Make this work for both players
+                prompt += self.opponent_payoff.format(opponent_payoff=opponent_payoff)
                 
-                prompt += self.template['newline']
+                prompt += self.newline
 
-        prompt += self.template['options'].format(action_zero=self.options[0], action_one=self.options[1])
-        prompt += self.template['queue']
+        prompt += self.options.format(action_zero=self.action_names[0], action_one=self.action_names[1])
+        prompt += self.cue
         prompt += " "
         return prompt
-
-    def format_action_context(self, context: Dict[str, Any]) -> str:
-        pass
     
 
 # 1. Classic Neutral / Abstract
@@ -67,7 +102,7 @@ template_neutral = {
     'opponent_payoff': " (Opponent Result: {opponent_payoff})",
     'newline': "\n",
     'options': 'Which will you choose? (0 for {action_zero}, 1 for {action_one}) ',
-    'queue': 'Input your choice (0/1):'
+    'cue': 'Input your choice (0/1):'
 }
 
 # 2. Business Competition
@@ -80,7 +115,7 @@ template_business = {
     'opponent_payoff': " (Competitor's profit: {opponent_payoff})",
     'newline': "\n",
     'options': 'Select strategy: 0 = {action_zero}, 1 = {action_one}. ',
-    'queue': 'Decision (0 or 1) -> '
+    'cue': 'Decision (0 or 1) -> '
 }
 
 # 3. Business Investment
@@ -93,7 +128,7 @@ template_investment = {
     'opponent_payoff': " (Partner's return: {opponent_payoff})",
     'newline': "\n",
     'options': 'Choose 0 ({action_zero}) or 1 ({action_one}) ',
-    'queue': 'Investment Level (0/1): '
+    'cue': 'Investment Level (0/1): '
 }
 
 # 4. National Security / Arms Race
@@ -106,7 +141,7 @@ template_security = {
     'opponent_payoff': " (Adversary's Index: {opponent_payoff})",
     'newline': "\n",
     'options': 'Enter 0 to {action_zero}, or 1 to {action_one}. ',
-    'queue': 'Directive (0 or 1): '
+    'cue': 'Directive (0 or 1): '
 }
 
 # 5. National Security / Intelligence Sharing
@@ -119,7 +154,7 @@ template_intel = {
     'opponent_payoff': " (Ally's advantage: {opponent_payoff})",
     'newline': "\n",
     'options': 'Make your choice: 0={action_zero}, 1={action_one}? ',
-    'queue': 'Decision (0 or 1): '
+    'cue': 'Decision (0 or 1): '
 }
 
 # 6. Good vs. Evil / Moral Dilemma
@@ -132,7 +167,7 @@ template_moral = {
     'opponent_payoff': " (Their fate: {opponent_payoff} points)",
     'newline': "\n",
     'options': 'Temptation calls... Choose 0 ({action_zero}) or 1 ({action_one})! ',
-    'queue': 'Your Soul\'s Choice (0 or 1): '
+    'cue': 'Your Soul\'s Choice (0 or 1): '
 }
 
 # 7. Environmental Cooperation
@@ -145,7 +180,7 @@ template_environmental = {
     'opponent_payoff': " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
     'newline': "\n",
     'options': 'Policy: 0 for {action_zero}, 1 for {action_one}. ',
-    'queue': 'Select Policy (0/1): '
+    'cue': 'Select Policy (0/1): '
 }
 
 # 8. Social Dilemma / Community Contribution
@@ -158,42 +193,18 @@ template_social = {
     'opponent_payoff': " (Partner's benefit: {opponent_payoff})",
     'newline': "\n",
     'options': 'What will you do? [0: {action_zero}, 1: {action_one}] ',
-    'queue': 'Your Action (0 or 1): '
+    'cue': 'Your Action (0 or 1): '
 }
 
 
 # Consolidated Dictionary of Game Prompts
 game_prompts = {
-    "neutral": {
-        "action_names": action_names_neutral,
-        "template": template_neutral
-    },
-    "business_competition": {
-        "action_names": action_names_business,
-        "template": template_business
-    },
-    "business_investment": {
-        "action_names": action_names_investment,
-        "template": template_investment
-    },
-    "security_arms": {
-        "action_names": action_names_security,
-        "template": template_security
-    },
-    "security_intel": {
-        "action_names": action_names_intel,
-        "template": template_intel
-    },
-    "moral_dilemma": {
-        "action_names": action_names_moral,
-        "template": template_moral
-    },
-    "environmental": {
-        "action_names": action_names_env,
-        "template": template_environmental
-    },
-    "social_dilemma": {
-        "action_names": action_names_social,
-        "template": template_social
-    }
+    "neutral": PromptConfig(template_neutral, action_names_neutral),
+    "business_competition": PromptConfig(template_business, action_names_business),
+    "business_investment": PromptConfig(template_investment, action_names_investment),
+    "security_arms": PromptConfig(template_security, action_names_security),
+    "security_intel": PromptConfig(template_intel, action_names_intel),
+    "moral_dilemma": PromptConfig(template_moral, action_names_moral),
+    "environmental": PromptConfig(template_environmental, action_names_env),
+    "social_dilemma": PromptConfig(template_social, action_names_social)
 }

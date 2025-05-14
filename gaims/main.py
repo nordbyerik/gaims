@@ -1,43 +1,38 @@
-# maigcom/main_loop.py
-
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List
 
 # Assuming these are defined in maigcom.definitions
-from .definitions import (
-    GameConfig,
-    AgentConfig,
-    GameAction,
-    CommunicationAction,
-    AggregatedObservation # Though ObservationAggregator produces this
-)
+from configs.game_config import GameConfig
+from configs.agent_config import AgentConfig
 
-# Assuming these are defined in their respective files
-from .games.game import (
-    Game # For _setup_agents
-)
+from games.game import Game # For _setup_agents
+from agents.models import ModelConfig 
+from games.matrix_games.matrix_game import MatrixGameState
+from games.resource_sharing.resource_sharing_game import ResourceSharingGameState
+from games.negotiation.negotiation_game import NegotiationGameState
 
-from .agents import (
-    BaseAgent,          # For type hinting
-    LLMAgent            # For concrete instantiation
-)
+from dotenv import load_dotenv
+import logging
+logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
 
+logger = logging.getLogger(__name__)
+
+load_dotenv()
 
 class MainGameLoop:
-    def __init__(self, game_config: GameConfig, agent_configs_data: List[Dict[str, Any]]):
+    def __init__(self, game_config: GameConfig, agent_configs: List[AgentConfig], matrix_game_state: MatrixGameState):
         self.game_config = game_config
-        self.agent_configs = [AgentConfig(**cfg) for cfg in agent_configs_data]
+        self.agent_configs = agent_configs
+        self.matrix_game_state = matrix_game_state
 
         self.current_round = 0
-        self.current_phase = "" # "PLAN_COMMUNICATE", "COMMUNICATE_EXECUTE", "FINALIZE_ACTION", "POST_PROCESS"
         
-        self.game = Game(self.game_config, self.agent_configs)
+        self.game = Game(self.game_config, self.agent_configs, matrix_game_state)
 
 
     def run_game(self):
         """Main loop that drives the game through rounds."""
-        for r in range(self.game_config.max_rounds):
+        for r in range(self.game_config.num_rounds):
             self.current_round = r
-            self.time_manager.set_current_round(r)
             print(f"\n--- Round {self.current_round + 1} ---")
 
             self.run_round()
@@ -50,16 +45,13 @@ class MainGameLoop:
 
     def run_round(self):
         """Logic for a single round with distinct phases."""
-        if self.game_config['observe']:
+        if self.game_config.observe:
             self.game.observe() # Update game state based on environment
-        if self.game_config['communicate']:
+        if self.game_config.communicate:
             self.game.communicate()
-        if self.game_config['act']:
+        if self.game_config.act:
             self.game.act()
-
             
-        self.state_manager.end_of_round_update() # Passive updates to state
-        self._log_round_summary()
 
 
     def _check_termination_conditions(self) -> bool:
@@ -86,15 +78,31 @@ class MainGameLoop:
 # TODO:
 
 # Things to make variable:
-# Commmunication topologies
-# Amount of knowledge past to agents
-# The agent personas
-# Which steps are taken (i.e. skip communication)
-# Method of conversation (i.e. number of rounds)
-# Whether logits/actual stuff is used
+    # Commmunication topologies
+    # Amount of knowledge past to agents
+    # The agent personas
+    # Which steps are taken (i.e. skip communication)
+    # Method of conversation (i.e. number of rounds)
+    # Whether logits/actual stuff is used
 
+# Make interoperable with stuff like OpenSpiel and Gymnasium
 
+from configs.prompt_config import game_prompts
 if __name__ == "__main__":
-    game_config = GameConfig(max_rounds=10, observe=False, communicate=False, act=True)
-    game = Game()
+    game_config = GameConfig(num_rounds=10, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
+    
+    game_prompt = game_prompts.get("neutral")
+    agent_configs = [
+        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="local")), 
+        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="local"))
+    ]
+
+    if game_config.game_type == "matrix_game":
+        game_state = MatrixGameState(game_config)
+    elif game_config.game_type == "resource_sharing":
+        game_state = ResourceSharingGameState(game_config)
+    elif game_config.game_type == "negotiation":
+        game_state = NegotiationGameState(game_config)
+
+    game = MainGameLoop(game_config, agent_configs, game_state)
     game.run_game()

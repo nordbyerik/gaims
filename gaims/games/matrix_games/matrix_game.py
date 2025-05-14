@@ -1,21 +1,46 @@
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import List, Dict, Any
+from abc import ABC
+from games.game import GameState
+from games.action import Action
+from configs.game_config import GameConfig
+
 import numpy as np
 import torch
 
-from agents.agent import Agent, Action
-from games.game import Game, GameConfig
+# Things that are needed for each game
+# - ActionsConfig/Definition
+# - GameConfig/Definition <- Below
+# - AgentConfig/Definition
 
-class MatrixGameAction(Action):
-    """Action for matrix-based games"""
-    def __init__(self, action_id: int, action_name: str = None):
-        super().__init__(action_id)
-        self.action_name = action_name or str(action_id)
-    
-    def execute(self):
-        return self.action_id
-    
+
+class MatrixAction(Action):
+    def __init__(self, agent_id: int, action_id: int, values: List[float] = None):
+        self.agent_id = agent_id
+        self.action_id = action_id
+
+class MatrixGameState(GameState):
+    def __init__(self, game_config: GameConfig, payoffs = None):
+        super().__init__(game_config)
+        generator = MatrixGameGenerator(2, 2, -2, 2)
+        self.payoff_matrix, self.optimal_actions = generator.generate_random_payoffs() if payoffs is None else payoffs
+        self.player_utility = 0
+
+    def step(self):
+        actions = [0 for _ in range(self.game_config.num_agents)]
+        for action, round in self.actions:
+            if round == self.round:
+                actions[action.agent_id] = action.action_id
+
+        self.player_utility += self.payoff_matrix[actions[0], actions[1], 0]
+
+    def get_state(self) -> Dict[str, Any]:
+        return {"player_utility": self.player_utility, "payoff_matrix": self.payoff_matrix}
+          
     def __str__(self):
-        return self.action_name
+        return_string = ""
+        return_string += f"Matrix Game with {self.num_players} players and {self.num_actions} actions per player\n"
+        return_string += f"Payoff Matrix: {self.payoff_matrix}\n"
+        return return_string
 
 
 class MatrixGameGenerator:
@@ -63,9 +88,8 @@ class MatrixGameGenerator:
     
     def generate_random_payoffs(self):
         """Generates new random payoffs for the game."""
-        self.payoffs = np.random.randint(self.min_payoff, self.max_payoff + 1,
-                                         size=(self.num_actions_p1, self.num_actions_p2, 2))
-        self.payoffs = torch.Tensor(self.payoffs)
+        self.payoffs = torch.randint(self.min_payoff, self.max_payoff + 1,
+                                        size=(self.num_actions_p1, self.num_actions_p2, 2))
         
         pure_nash_equilibria = self.find_pure_strategy_nash_equilibria() # Reset cache
         return self.payoffs, pure_nash_equilibria
@@ -114,34 +138,3 @@ class MatrixGameGenerator:
         # Cache the result
         self._pure_nash_equilibria = nash_equilibria
         return self._pure_nash_equilibria
-
-
-
-
-class MatrixGame(Game):
-    def __init__(self, config: GameConfig):
-        super().__init__(config)
-        self.payoff_matrix = config.get('payoff_matrix', None)
-        self.num_players = config.get('num_players', 2)
-        self.num_actions = config.get('num_actions', 2)
-        self.actions = [MatrixGameAction(i) for i in range(self.num_actions)]
-
-    def __str__(self):
-        return_string = ""
-        return_string += f"Matrix Game with {self.num_players} players and {self.num_actions} actions per player\n"
-        return_string += f"Payoff Matrix: {self.payoff_matrix}\n"
-        return return_string
-
-    def _to_dict(self):
-        payoff_dict = {}
-        for player_index in range(self.num_players):
-            for action_index in range(self.num_actions):
-                for opponent_action_index in range(self.num_actions):
-                    # TODO: Should handle multiple players
-                    if player_index == 0:
-                        payoff_dict[player_index, action_index, opponent_action_index] = self.payoff_matrix[action_index, opponent_action_index, player_index]
-                    else:
-                        payoff_dict[player_index, action_index, opponent_action_index] = self.payoff_matrix[opponent_action_index, action_index, player_index]
-        
-        return payoff_dict
-    

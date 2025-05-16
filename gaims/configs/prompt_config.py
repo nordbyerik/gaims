@@ -57,9 +57,11 @@ class PromptConfig(ABC):
         self.communication_observation_step_cue = template.get('communication_observation_step_cue', "Given these messages, game rules, and prior information, write down your thoughts, plans, and any new observations.")
 
         self.newline = template.get('newline', "\n")
+
         self.action_names = action_names
         self.agent_names = agent_names
 
+    
     def _format_payoff_rules(self, context: Dict[str, Any]) -> str:
         """
         Formats the game's payoff rules for the current player.
@@ -72,12 +74,14 @@ class PromptConfig(ABC):
         rules_prompt = ""
         agent_id = context.get('agent_id')
         payoff_matrix = context.get('state', {}).get('payoff_matrix')
+        num_players = context.get('num_players')
 
         if agent_id is None:
             rules_prompt += "Your player ID is not specified, so personalized payoff rules cannot be shown.\n"
             return rules_prompt
         
-        rules_prompt += self.payoff_section_header.format(agent_id=agent_id)
+        player_descriptor = f"{self.agent_names[agent_id]}"
+        rules_prompt += self.payoff_section_header.format(agent_id=player_descriptor)
 
         if payoff_matrix is None:
             rules_prompt += "Payoff matrix is currently unavailable.\n"
@@ -85,7 +89,6 @@ class PromptConfig(ABC):
         
         try:
             num_player_actions = len(self.action_names)
-            # Assuming the number of "opponent actions" is also based on self.action_names
             num_opponent_actions = len(self.action_names) 
 
             for player_action_idx in range(num_player_actions):
@@ -231,8 +234,6 @@ class PromptConfig(ABC):
         Payoff rules are now included via prompt_intro.
         """
         prompt = self.prompt_intro(context)
-        # The detailed payoff breakdown is now part of prompt_intro via _format_payoff_rules
-
         prompt += self.action_query
         
         options_str_parts = []

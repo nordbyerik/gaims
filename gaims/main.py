@@ -93,8 +93,8 @@ if __name__ == "__main__":
     
     game_prompt = game_prompts.get("neutral")
     agent_configs = [
-        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="microsoft/Phi-3-mini-4k-instruct")), 
-        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="microsoft/Phi-3-mini-4k-instruct"))
+        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini")), 
+        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
     ]
 
     if game_config.game_type == "matrix_game":

@@ -108,6 +108,8 @@ class CommunicationMedium(ABC):
 
     return pending_messages
 
+  def get_communication_partners(self, agent_name: str) -> List[str]:
+    return self.adjacency_list.get(agent_name, [])
 
   def clear_messages(self) -> None:
     """Clears all pending messages from the medium."""
@@ -117,7 +119,7 @@ class FullyConnectedCommunicationMedium(CommunicationMedium):
   def __init__(self, agents: List[str]):
     # Agents can send to any other agent, but not themselves by default.
     adjacency_list: Dict[str, List[str]] = {
-        agent: [other_agent for other_agent in agents if other_agent != agent]
+        agent.id: [other_agent.id for other_agent in agents if other_agent != agent]
         for agent in agents
     }
     super().__init__(adjacency_list)
@@ -183,3 +185,20 @@ class StarCommunicationMedium(CommunicationMedium):
       # Center sends to all peripherals
       adjacency_list[center_agent] = list(peripheral_agents)
     super().__init__(adjacency_list)
+
+
+class CommunicationMediumFactory:
+  @staticmethod
+  def create_communication_medium(medium_type: str, agents: List[str]) -> CommunicationMedium:
+    if medium_type == "ring":
+      return RingCommunicationMedium(agents)
+    elif medium_type == "star":
+      return StarCommunicationMedium(agents)
+    elif medium_type == "fully_connected":
+      return FullyConnectedCommunicationMedium(agents)
+    elif medium_type == "linear":
+      return LinearCommunicationMedium(agents)
+    elif medium_type == "sparse":
+      return SparseCommunicationMedium(agents)  # Assuming you have a NoneCommunicationMedium class for "none
+    else:
+      raise ValueError(f"Unknown communication medium type: {medium_type}")

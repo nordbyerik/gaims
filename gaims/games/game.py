@@ -2,7 +2,9 @@ from typing import List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
 from agents.agent import Agent
-from communication.communication import CommunicationMedium
+from communication.communication import CommunicationMediumFactory
+    
+
 from configs.game_config import GameConfig
 class GameState(ABC):
     def __init__(self, game_config: GameConfig, **kwargs):
@@ -39,12 +41,14 @@ class Game(ABC):
 
         self.game_state = game_state
 
-        self.communication_medium = CommunicationMedium(config.get('communication_medium', None))
+        
         self.agents = [Agent(agent_config) for agent_config in agent_configs]
+        self.communication_medium = CommunicationMediumFactory.create_communication_medium(config.get('communication_medium', 'fully_connected'), self.agents)
 
     def aggregate_context(self, agent_id):
         state = self.game_state.get_state()
         messages = self.communication_medium.get_all_pending_messages_for_agent(agent_id)
+        communication_partners = self.communication_medium.get_communication_partners(agent_id)
         agent_observations = self.agents[agent_id].observations
         
         return {
@@ -52,6 +56,7 @@ class Game(ABC):
             "messages": messages,
             "agent_observations": agent_observations,
             "agent_id": agent_id,
+            "communication_partners": communication_partners,
             # TODO: Just pass the config as a whole
             "num_rounds": self.config.num_rounds,
             "num_actions": self.config.num_actions,

@@ -13,10 +13,25 @@ class MatrixAction(Action):
         self.action_id = action_id
 
 class MatrixGameState(GameState):
+    def find_pure_strategy_nash_equilibria(self):
+        nash_equilibria = []
+        rows, cols, _ = self.payoff_matrix.shape
+        for i in range(rows):
+            for j in range(cols):
+                # Check if player 1 can do better by changing row
+                is_p1_best = all(self.payoff_matrix[i, j, 0] >= self.payoff_matrix[k, j, 0] for k in range(rows))
+                # Check if player 2 can do better by changing column
+                is_p2_best = all(self.payoff_matrix[i, j, 1] >= self.payoff_matrix[i, k, 1] for k in range(cols))
+
+                if is_p1_best and is_p2_best:
+                    nash_equilibria.append((i, j))
+        return nash_equilibria
+
     def __init__(self, game_config: GameConfig, payoffs = None):
         super().__init__(game_config)
         self.payoff_matrix = self.generate_random_payoffs() if payoffs is None else payoffs
         self.player_utility = 0
+        self.nash_equilibria = self.find_pure_strategy_nash_equilibria()
 
     def step(self):
         actions = [0 for _ in range(self.game_config.num_agents)]

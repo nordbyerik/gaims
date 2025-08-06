@@ -11,7 +11,8 @@ from gaims.configs.game_config import GameConfig
 from gaims.configs.agent_config import AgentConfig
 
 
-from gaims.agents.models import ModelConfig 
+from gaims.agents.models import ModelConfig, ModelFactory
+from gaims.agents.agent import Agent 
 from gaims.games.matrix_games.matrix_game import MatrixGameState
 from gaims.games.resource_sharing.resource_sharing_game import ResourceSharingGameState
 from gaims.games.negotiation.negotiation_game import NegotiationGameState
@@ -32,9 +33,11 @@ if __name__ == "__main__":
 
     game_prompt = game_prompts.get("neutral")
     agent_configs = [
-        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini")), 
+        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
         AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
     ]
+
+    agents = [Agent(config) for config in agent_configs]
 
     if game_config.game_type == "matrix_game":
         game_state = MatrixGameState(game_config)
@@ -43,14 +46,15 @@ if __name__ == "__main__":
     elif game_config.game_type == "negotiation":
         game_state = NegotiationGameState(game_config)
 
-    env = GaimsEnv(game_config, agent_configs, game_state)
+    env = GaimsEnv(game_config, agent_configs, game_state, agents)
     
-    obs = env.reset()
+    obs, info = env.reset()
     done = False
     while not done:
         env.render()
         action = env.action_space.sample() # Sample a random action
         obs, reward, done, info = env.step(action)
         print(f"Reward: {reward}")
+        print(f"Nash Equilibria: {info['nash_equilibria']}")
 
     env.close()

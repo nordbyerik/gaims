@@ -28,6 +28,7 @@ class GaimsEnv(gym.Env):
         for agent in self.agents:
             # For now, a simplified context for the agent to act
             context = {
+                "agent_id": agent.id,
                 "state": self.game_state.get_state(),
                 "round": self.game_state.round,
             }

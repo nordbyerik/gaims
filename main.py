@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import torch
 
 load_dotenv()
 print(os.getenv("GOOGLE_API_KEY"))  # Should not be None
@@ -28,12 +29,13 @@ logger = logging.getLogger(__name__)
 
 from gaims.configs.prompt_config import game_prompts
 if __name__ == "__main__":
-    print("Here")
+    torch.cuda.empty_cache()
+
     game_config = GameConfig(num_rounds=10, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
 
     game_prompt = game_prompts.get("neutral")
     agent_configs = [
-        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
+        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
         AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
     ]
 

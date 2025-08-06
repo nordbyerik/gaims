@@ -37,7 +37,7 @@ class ActivationHook:
         self.transformation_function = transformation_function
 
     def hook_mlp(self, module, input, output):
-        self.activations = output.detach()
+        self.activations = output
         return self.transformation_function(output)
 
     def hook_attention(self, module, input, output):

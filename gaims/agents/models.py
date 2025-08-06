@@ -180,11 +180,11 @@ class LocalModel(Model):
         # Load tokenizer and model using the provided hf_repo_id
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name) # Use self.model_name (which is hf_repo_id)
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name, torch_dtype=torch.float16
+            self.model_name, torch_dtype=torch.bfloat16
         )
 
         pipe = pipeline(
-            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=520
+            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=256
         )
         hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
@@ -259,15 +259,20 @@ class LocalModel(Model):
         # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed
+    
+        
+       
 
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
-        raw_response_content = self._clean_model_tags(raw_response_content)
 
         try:
-            return structure.model_validate_json(raw_response_content) # type: ignore
-        except Exception as e:
-            log.error(f"Failed to parse extracted content into structure: {e}")
+            assistant_response = raw_response_content.split(messages[-1].content)[-1]
+            numbers = re.findall(r'\d+', assistant_response)
+
+            return numbers[-1] if numbers else None
+        
+        except:
             raise  StructureParsingException(
                 f"Failed to parse extracted content into structure: {e}", 
                 raw_response_content, 

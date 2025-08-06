@@ -864,7 +864,7 @@ class ChatHuggingFace(BaseChatModel):
         *,
         method: Literal[
             "function_calling", "json_mode", "json_schema"
-        ] = "function_calling",
+        ] = "json_mode",
         include_raw: bool = False,
         **kwargs: Any,
     ) -> Runnable[LanguageModelInput, Union[dict, BaseModel]]:

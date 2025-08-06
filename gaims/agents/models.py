@@ -4,17 +4,17 @@ import random
 import string
 from abc import ABC
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from utils.huggingface_langchain import ChatHuggingFace
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import PreTrainedTokenizer
 
+from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
+from gaims.utils.huggingface_langchain import ChatHuggingFace
+
 # Assuming these are correctly defined in your project structure
-from games.action import Action # type: ignore
-from communication.communication import Message # type: ignore
+from gaims.games.action import Action # type: ignore
+from gaims.communication.communication import Message # type: ignore
 
 from pydantic import BaseModel, Field
 from typing import List # type: ignore
@@ -33,14 +33,15 @@ class StructureParsingException(Exception):
 
 class MessageStructure(BaseModel):
     message_content: str = Field(description="The message to send")
-    receiver: int | List[int] = Field(description="The recipient of the message")
+    receiver: List[int] = Field(description="The recipient of the message")
 
 class ActionStructure(BaseModel):
     action_id: int = Field(description="The action to take")
 
 class ModelConfig():
-    def __init__(self, model_name: str): # model_name here is the HF repo ID or "gemini"
+    def __init__(self, model_name: str, activation_layers: list[str] | None = None): # model_name here is the HF repo ID or "gemini"
         self.model_name = model_name
+        self.activation_layers = activation_layers
 
 class Model(ABC):
     def __init__(self, identifier: str | None = None, model_name: str = "unsloth/Llama-3.2-3B-Instruct"):
@@ -149,14 +150,14 @@ class Model(ABC):
         if not isinstance(response, MessageStructure):
              # Handle error or convert if possible, e.g. if response is raw string due to parsing fail
             raise TypeError(f"Expected MessageStructure, got {type(response)}")
-        return response # type: ignore
+        return Message(sender=self._identifier, receiver=response.receiver, message_content=response.message_content) # type: ignore
 
     def act(self, message: str, **kwargs) -> Action: # type: ignore
         response = self.send_message(message, structure=ActionStructure, **kwargs)
         if not isinstance(response, ActionStructure):
             # Handle error or convert
             raise TypeError(f"Expected ActionStructure, got {type(response)}")
-        return response # type: ignore
+        return Action(agent_id=int(self._identifier), action_id=response.action_id) # type: ignore
 
 
 class GeminiModel(Model):
@@ -168,36 +169,40 @@ class GeminiModel(Model):
         self.llm = ChatGoogleGenerativeAI(model=self.model_name, google_api_key=gemini_api_key) # Use self.model_name
 
 
+from gaims.utils.activation_hook import ActivationHook
+
 class LocalModel(Model):
     # Parameter 'hf_repo_id' is the string like "microsoft/Phi-3-mini-4k-instruct"
-    def __init__(self, hf_repo_id: str):
+    def __init__(self, hf_repo_id: str = "openai/gpt-oss-20b", activation_layers: list[str] | None = None):
         # Pass hf_repo_id as both the instance identifier and the model_name to the base class.
         super().__init__(identifier=hf_repo_id, model_name=hf_repo_id)
 
         # Load tokenizer and model using the provided hf_repo_id
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name) # Use self.model_name (which is hf_repo_id)
-        model_for_pipeline = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
-            torch_dtype=torch.float16,
-            load_in_8bit=True
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name) # Use self.model_name (which is hf_repo_id)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_name, torch_dtype=torch.bfloat16
         )
-        
+
         pipe = pipeline(
-            "text-generation", model=model_for_pipeline, tokenizer=tokenizer, max_new_tokens=520
+            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=256
         )
         hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
         # CRITICAL FIX: Explicitly pass the hf_repo_id as model_id to ChatHuggingFace.
         self.llm = ChatHuggingFace(llm=hf_pipeline_wrapper, model_id=self.model_name)
+        self.hooks = {}
+        if activation_layers:
+            self._register_hooks(activation_layers)
 
-    def get_activations(self, layer): # type: ignore
-        # This method relies on 'self.hooks' which is not defined in the provided code.
-        # It needs to be properly initialized if this functionality is to be used.
-        # For example, hooks might be attached to 'model_for_pipeline' during its setup.
-        if hasattr(self, 'hooks') and self.hooks and layer in self.hooks: # type: ignore
-             return self.hooks[layer].activations[:, -1, :].detach().cpu() # type: ignore
-        log.warning(f"Hooks not found or layer '{layer}' not in hooks for model {self.model_name}")
-        return None
+    def _register_hooks(self, layer_names: list):
+        for layer_name in layer_names:
+            self.hooks[layer_name] = ActivationHook(self.model, layer_name)
+
+    def get_activations(self, layer_name: str):
+        if layer_name in self.hooks:
+            return self.hooks[layer_name].activations
+        else:
+            raise ValueError(f"No activation hook registered for layer: {layer_name}")
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
         """
@@ -223,18 +228,16 @@ class LocalModel(Model):
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         messages.append(HumanMessage(content=message))
-        
-        tokenizer = self.llm.llm.pipeline.tokenizer
 
         if structure is not None:
-            response_content = self._handle_structured_response(messages, structure, tokenizer)
+            response_content = self._handle_structured_response(messages, structure)
         else:
-            response_content = self._handle_unstructured_response(messages, tokenizer)
+            response_content = self._handle_unstructured_response(messages)
 
         log.info(f"{self._identifier} -->: {response_content}")
         return response_content
 
-    def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel, tokenizer: PreTrainedTokenizer) -> BaseModel:
+    def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         """
         Handles sending messages to the LLM when a structured response is expected.
 
@@ -252,26 +255,31 @@ class LocalModel(Model):
         """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
-        
-        # If parsed return 
+
+        # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed
+    
+        
+       
 
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
-        raw_response_content = self._clean_model_tags(raw_response_content, tokenizer)
-        
+
         try:
-            return structure.model_validate_json(raw_response_content) # type: ignore
-        except Exception as e:
-            log.error(f"Failed to parse extracted content into structure: {e}")
+            assistant_response = raw_response_content.split(messages[-1].content)[-1]
+            numbers = re.findall(r'\d+', assistant_response)
+
+            return numbers[-1] if numbers else None
+        
+        except:
             raise  StructureParsingException(
                 f"Failed to parse extracted content into structure: {e}", 
                 raw_response_content, 
                 structure
             )
 
-    def _handle_unstructured_response(self, messages: list[BaseMessage], tokenizer: PreTrainedTokenizer) -> str:
+    def _handle_unstructured_response(self, messages: list[BaseMessage]) -> str:
         """
         Handles sending messages to the LLM when an unstructured string response is expected.
 
@@ -286,12 +294,11 @@ class LocalModel(Model):
             ValueError: If the generation prompt is not found in the model's response
                         during the cleaning process.
         """
-        response_message = self.llm.invoke(messages)
-        response_content = response_message.content
-        response_content = self._clean_model_tags(response_content, tokenizer) 
+        response_content = self.llm.invoke(messages).content
+        response_content = self._clean_model_tags(response_content)
+        return response_content
 
-
-    def _clean_model_tags(self, text: str, tokenizer: PreTrainedTokenizer) -> str:
+    def _clean_model_tags(self, text: str) -> str:
         """
         Extracts and cleans the model's generated text from the raw response.
 
@@ -308,15 +315,15 @@ class LocalModel(Model):
                         the input `text`.
         """
         # Get the generation prompt and remove everything prior to it
-        messages_start = tokenizer.apply_chat_template("", tokenize=False, add_generation_prompt=True)        
+        messages_start = self.tokenizer.apply_chat_template("", tokenize=False, add_generation_prompt=True)        
         if messages_start in text:
             cleaned_text = text.split(messages_start)[-1]
         else:
             raise ValueError("Generation prompt not found in the response text.")
 
         # Strip any additional special tokens
-        token_ids = tokenizer.encode(cleaned_text, add_special_tokens=False)
-        cleaned_text = tokenizer.decode(token_ids, skip_special_tokens=True)
+        token_ids = self.tokenizer.encode(cleaned_text, add_special_tokens=False)
+        cleaned_text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
         cleaned_text = cleaned_text.strip()
 
@@ -344,5 +351,8 @@ class ModelFactory:
 
             if hf_repo_id not in model_registry:
                 # Pass the hf_repo_id to LocalModel constructor
-                model_registry[hf_repo_id] = LocalModel(hf_repo_id=hf_repo_id)
+                model_registry[hf_repo_id] = LocalModel(
+                    hf_repo_id=hf_repo_id,
+                    activation_layers=model_config.activation_layers,
+                )
             return model_registry[hf_repo_id]

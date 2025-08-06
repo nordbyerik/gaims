@@ -1,12 +1,12 @@
 from typing import List, Dict, Any, Type
 from abc import ABC, abstractmethod
 
-from communication.communication import Message
-from games.action import Action
-from agents.models import Model, ModelFactory
+from gaims.communication.communication import Message
+from gaims.games.action import Action
+from gaims.agents.models import Model, ModelFactory
 
-from configs.agent_config import AgentConfig
-from configs.prompt_config import PromptConfig
+from gaims.configs.agent_config import AgentConfig
+from gaims.configs.prompt_config import PromptConfig
 
 class Agent():
     def __init__(self, agent_config: AgentConfig):
@@ -38,7 +38,7 @@ class Agent():
         formatted_messages = formatted_context
 
         llm_repsonse = self.model.communicate(formatted_messages, system_prompt=self.persona)
-        message = Message(self.id, llm_repsonse.recipient, llm_repsonse.message)
+        message = Message(self.id, llm_repsonse.receiver, llm_repsonse.message_content)
         return message
 
     def act(self, context: Dict[str, Any]) -> Action:

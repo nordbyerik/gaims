@@ -10,11 +10,11 @@ from transformers import PreTrainedTokenizer
 from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from utils.huggingface_langchain import ChatHuggingFace
+from gaims.utils.huggingface_langchain import ChatHuggingFace
 
 # Assuming these are correctly defined in your project structure
-from games.action import Action # type: ignore
-from communication.communication import Message # type: ignore
+from gaims.games.action import Action # type: ignore
+from gaims.communication.communication import Message # type: ignore
 
 from pydantic import BaseModel, Field
 from typing import List # type: ignore

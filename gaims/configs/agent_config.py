@@ -1,6 +1,6 @@
 from typing import Dict, Type, List, Any
-from configs.prompt_config import PromptConfig
-from agents.models import Model, GeminiModel, LocalModel, ModelConfig
+from gaims.configs.prompt_config import PromptConfig
+from gaims.agents.models import Model, GeminiModel, LocalModel, ModelConfig
 
 # Registry of available agent types
 AGENT_REGISTRY: Dict[str, Type[Model]] = {

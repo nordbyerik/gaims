@@ -1,5 +1,4 @@
-import torch
-from typing import List, Union, Dict, Any
+from typing import Any
 
 class GameConfig:
     def __init__(self, 
@@ -52,4 +51,3 @@ class GameConfig:
     
     def get(self, key, default=None):
         return self.to_dict().get(key, default)
-    

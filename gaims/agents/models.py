@@ -4,13 +4,13 @@ import random
 import string
 from abc import ABC
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from utils.huggingface_langchain import ChatHuggingFace
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import PreTrainedTokenizer
+
+from langchain_huggingface import HuggingFacePipeline  # Corrected import name if it was an issue
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
+from utils.huggingface_langchain import ChatHuggingFace
 
 # Assuming these are correctly defined in your project structure
 from games.action import Action # type: ignore
@@ -33,7 +33,7 @@ class StructureParsingException(Exception):
 
 class MessageStructure(BaseModel):
     message_content: str = Field(description="The message to send")
-    receiver: int | List[int] = Field(description="The recipient of the message")
+    receiver: List[int] = Field(description="The recipient of the message")
 
 class ActionStructure(BaseModel):
     action_id: int = Field(description="The action to take")
@@ -181,7 +181,7 @@ class LocalModel(Model):
             torch_dtype=torch.float16,
             load_in_8bit=True
         )
-        
+
         pipe = pipeline(
             "text-generation", model=model_for_pipeline, tokenizer=tokenizer, max_new_tokens=520
         )
@@ -190,12 +190,9 @@ class LocalModel(Model):
         # CRITICAL FIX: Explicitly pass the hf_repo_id as model_id to ChatHuggingFace.
         self.llm = ChatHuggingFace(llm=hf_pipeline_wrapper, model_id=self.model_name)
 
-    def get_activations(self, layer): # type: ignore
-        # This method relies on 'self.hooks' which is not defined in the provided code.
-        # It needs to be properly initialized if this functionality is to be used.
-        # For example, hooks might be attached to 'model_for_pipeline' during its setup.
-        if hasattr(self, 'hooks') and self.hooks and layer in self.hooks: # type: ignore
-             return self.hooks[layer].activations[:, -1, :].detach().cpu() # type: ignore
+    def get_activations(self, layer):
+        if hasattr(self, "hooks") and self.hooks and layer in self.hooks:
+            return self.hooks[layer].activations[:, -1, :].detach().cpu()
         log.warning(f"Hooks not found or layer '{layer}' not in hooks for model {self.model_name}")
         return None
 
@@ -223,7 +220,7 @@ class LocalModel(Model):
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         messages.append(HumanMessage(content=message))
-        
+
         tokenizer = self.llm.llm.pipeline.tokenizer
 
         if structure is not None:
@@ -252,15 +249,15 @@ class LocalModel(Model):
         """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
-        
-        # If parsed return 
+
+        # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed
 
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
         raw_response_content = self._clean_model_tags(raw_response_content, tokenizer)
-        
+
         try:
             return structure.model_validate_json(raw_response_content) # type: ignore
         except Exception as e:
@@ -289,7 +286,6 @@ class LocalModel(Model):
         response_message = self.llm.invoke(messages)
         response_content = response_message.content
         response_content = self._clean_model_tags(response_content, tokenizer) 
-
 
     def _clean_model_tags(self, text: str, tokenizer: PreTrainedTokenizer) -> str:
         """

@@ -38,7 +38,7 @@ class Agent():
         formatted_messages = formatted_context
 
         llm_repsonse = self.model.communicate(formatted_messages, system_prompt=self.persona)
-        message = Message(self.id, llm_repsonse.recipient, llm_repsonse.message)
+        message = Message(self.id, llm_repsonse.receiver, llm_repsonse.message_content)
         return message
 
     def act(self, context: Dict[str, Any]) -> Action:

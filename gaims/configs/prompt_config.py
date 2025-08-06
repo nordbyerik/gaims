@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 
 class PromptConfig(ABC):
@@ -11,7 +11,9 @@ class PromptConfig(ABC):
 
         # Player and Round Information (for general intro)
         self.players_info_header = template.get('players_info_header', "There are {num_players} players in total.\n")
-        self.agent_identity_header = template.get('agent_identity_header', "You are player {agent_id}.\n")
+        self.agent_identity_header = template.get(
+            "agent_identity_header", "You are player {agent_id}.\n"
+        )
         self.finite_rounds_header = template.get('finite_rounds_header', "You will play {rounds} rounds in total.\n")
         # For finite games with current round:
         self.round_header = template.get('round_header', "It is currently round {round_number} of {total_rounds_str}.\n")
@@ -20,7 +22,6 @@ class PromptConfig(ABC):
         # For infinite/unknown total rounds, but current round known:
         self.current_round_info = template.get('current_round_info', "This is round {current_round}.\n")
 
-
         # Communication Rules (for general intro)
         self.communication_allowed_specific = template.get('communication_allowed_specific', "You will be allowed to communicate with the following players: {communication_partners}.\n")
         self.communication_allowed_all = template.get('communication_allowed_all', "You will be allowed to communicate with all other players.\n")
@@ -28,7 +29,7 @@ class PromptConfig(ABC):
 
         # Observation Formatting (for general intro and specific observation steps)
         self.observation_format = template.get('observation_format', "Your prior observations: {observations}\n")
-        
+
         # Payoff Rules Templates (used in _format_payoff_rules)
         # Note: The original snippet had a self.player_header for payouts that was overwritten.
         # We introduce a specific template for the payoff section header.
@@ -61,7 +62,6 @@ class PromptConfig(ABC):
         self.action_names = action_names
         self.agent_names = agent_names
 
-    
     def _format_payoff_rules(self, context: Dict[str, Any]) -> str:
         """
         Formats the game's payoff rules for the current player.
@@ -79,14 +79,14 @@ class PromptConfig(ABC):
         if agent_id is None:
             rules_prompt += "Your player ID is not specified, so personalized payoff rules cannot be shown.\n"
             return rules_prompt
-        
+
         player_descriptor = f"{self.agent_names[agent_id]}"
         rules_prompt += self.payoff_section_header.format(agent_id=player_descriptor)
 
         if payoff_matrix is None:
             rules_prompt += "Payoff matrix is currently unavailable.\n"
             return rules_prompt
-        
+
         try:
             num_player_actions = len(self.action_names)
             num_opponent_actions = len(self.action_names) 
@@ -107,18 +107,17 @@ class PromptConfig(ABC):
                         # Break inner loop if matrix structure is unexpected for further opponent actions
                         rules_prompt += f"    - Error accessing payoff for opponent action {opponent_action_name}\n"
                         break 
-                    
+
                     rules_prompt += self.payoff_line.format(
                         opponent_action=opponent_action_name,
                         payoff=own_payoff
                     )
                 rules_prompt += self.newline # Add a newline after all outcomes for a player_action
-            
+
         except Exception as e:
             rules_prompt += f"Could not display full payoff rules due to an error: {e}\n"
-        
-        return rules_prompt + self.newline
 
+        return rules_prompt + self.newline
 
     def prompt_intro(self, context: Dict[str, Any]) -> str:
         """
@@ -131,7 +130,7 @@ class PromptConfig(ABC):
         if 'num_players' in context:
             prompt += self.players_info_header.format(num_players=context['num_players'])
         if 'agent_id' in context:
-            prompt += self.agent_identity_header.format(agent_id=context['agent_id'])
+            prompt += self.agent_identity_header.format(agent_id=context["agent_id"])
 
         # Round information
         num_rounds = context.get('num_rounds')
@@ -147,10 +146,9 @@ class PromptConfig(ABC):
                 prompt += self.finite_rounds_header.format(rounds=num_rounds)
                 prompt += self.round_header.format(round_number=current_round, total_rounds_str=str(num_rounds))
         elif num_rounds == float('inf') or num_rounds is None: # If only total rounds info is available (no current round yet)
-             prompt += self.infinite_rounds_header
+            prompt += self.infinite_rounds_header
         elif num_rounds > 1: # Finite rounds but no current round info
             prompt += self.finite_rounds_header.format(rounds=num_rounds)
-
 
         # Communication information
         if context.get('can_communicate_all', False):
@@ -160,12 +158,12 @@ class PromptConfig(ABC):
             prompt += self.communication_allowed_specific.format(communication_partners=partners_str)
         else:
             prompt += self.communication_not_allowed
-        
+
         prompt += self.newline
-        
+
         # Game Rules / Payoff Matrix
         prompt += self._format_payoff_rules(context)
-        
+
         # Past observations
         observations = context.get('agent_observations', "You have no prior observations for this game.")
         prompt += self.observation_format.format(observations=observations)
@@ -181,7 +179,7 @@ class PromptConfig(ABC):
     def format_observe_communication_context(self, context: Dict[str, Any]) -> str:
         prompt = self.prompt_intro(context)
         prompt += self.communication_observation_step_header
-        
+
         messages_received_str = ""
         if 'messages' in context and context['messages']:
             # Assuming messages is Dict[sender_id, List[MessageObject]] or similar
@@ -196,7 +194,9 @@ class PromptConfig(ABC):
                 all_messages = []
 
             if not all_messages:
-                 messages_received_str = "You have received no new messages this round." + self.newline
+                messages_received_str = (
+                    "You have received no new messages this round." + self.newline
+                )
             else:
                 for msg_obj in all_messages: # Assuming msg_obj has .sender and .message
                     sender_display = getattr(msg_obj, 'sender', 'Unknown sender') 
@@ -219,10 +219,9 @@ class PromptConfig(ABC):
             if isinstance(context['adjacency_list'], list) and context['adjacency_list']:
                 adjacency_display = ", ".join(map(str, context['adjacency_list']))
             elif isinstance(context['adjacency_list'], str) and context['adjacency_list']: # If it's already a string
-                 adjacency_display = context['adjacency_list']
+                adjacency_display = context["adjacency_list"]
             elif not context['adjacency_list']: # Empty list
                 adjacency_display = "no one specific (broadcast may be possible if supported)"
-
 
         prompt += self.communication_step_header.format(adjacency_list=adjacency_display)
         prompt += self.communication_step_cue
@@ -235,7 +234,7 @@ class PromptConfig(ABC):
         """
         prompt = self.prompt_intro(context)
         prompt += self.action_query
-        
+
         options_str_parts = []
         if not self.action_names:
             prompt += "No actions are defined." + self.newline
@@ -243,11 +242,11 @@ class PromptConfig(ABC):
             for i, name in enumerate(self.action_names):
                 options_str_parts.append(self.action_option_format.format(index=i, action_name=name))
             prompt += "(" + ", ".join(options_str_parts) + ")" + self.newline
-        
+
         prompt += self.action_cue
         prompt += " " 
         return prompt, self.system_prompt
-    
+
 
 # 1. Classic Neutral / Abstract
 action_names_neutral = ["Action A", "Action B"]
@@ -364,12 +363,28 @@ template_social = {
 
 # Consolidated Dictionary of Game Prompts
 game_prompts = {
-    "neutral": PromptConfig(template_neutral, action_names_neutral),
-    "business_competition": PromptConfig(template_business, action_names_business),
-    "business_investment": PromptConfig(template_investment, action_names_investment),
-    "security_arms": PromptConfig(template_security, action_names_security),
-    "security_intel": PromptConfig(template_intel, action_names_intel),
-    "moral_dilemma": PromptConfig(template_moral, action_names_moral),
-    "environmental": PromptConfig(template_environmental, action_names_env),
-    "social_dilemma": PromptConfig(template_social, action_names_social)
+    "neutral": PromptConfig(
+        template_neutral, action_names_neutral, agent_names_neutral
+    ),
+    "business_competition": PromptConfig(
+        template_business, action_names_business, agent_names_business
+    ),
+    "business_investment": PromptConfig(
+        template_investment, action_names_investment, agent_names_investment
+    ),
+    "security_arms": PromptConfig(
+        template_security, action_names_security, agent_names_security
+    ),
+    "security_intel": PromptConfig(
+        template_intel, action_names_intel, agent_names_intel
+    ),
+    "moral_dilemma": PromptConfig(
+        template_moral, action_names_moral, agent_names_moral
+    ),
+    "environmental": PromptConfig(
+        template_environmental, action_names_env, agent_names_env
+    ),
+    "social_dilemma": PromptConfig(
+        template_social, action_names_social, agent_names_social
+    ),
 }

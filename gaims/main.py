@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+print(os.getenv("GOOGLE_API_KEY"))  # Should not be None
+
 from typing import Any, List
 
 # Assuming these are defined in maigcom.definitions
@@ -10,13 +16,13 @@ from games.matrix_games.matrix_game import MatrixGameState
 from games.resource_sharing.resource_sharing_game import ResourceSharingGameState
 from games.negotiation.negotiation_game import NegotiationGameState
 
-from dotenv import load_dotenv
 import logging
-logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+import time
+
+logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-load_dotenv()
 
 class MainGameLoop:
     def __init__(self, game_config: GameConfig, agent_configs: List[AgentConfig], matrix_game_state: MatrixGameState):
@@ -25,9 +31,8 @@ class MainGameLoop:
         self.matrix_game_state = matrix_game_state
 
         self.current_round = 0
-        
-        self.game = Game(self.game_config, self.agent_configs, matrix_game_state)
 
+        self.game = Game(self.game_config, self.agent_configs, matrix_game_state)
 
     def run_game(self):
         """Main loop that drives the game through rounds."""
@@ -40,6 +45,9 @@ class MainGameLoop:
             if self._check_termination_conditions():
                 print("Game over: Termination conditions met.")
                 break
+
+            time.sleep(60)
+
         self._log_game_results()
         print("Game finished.")
 
@@ -51,13 +59,11 @@ class MainGameLoop:
             self.game.communicate()
         if self.game_config.act:
             self.game.act()
-            
-
 
     def _check_termination_conditions(self) -> bool:
         # Example: Check win/loss conditions based on state_manager.get_ground_truth_state()
         # or if max rounds reached.
-        if self.current_round >= self.game_config.max_rounds - 1:
+        if self.current_round >= self.game_config.num_rounds - 1:
             return True
         # Add other game-specific termination logic here
         return False
@@ -78,19 +84,20 @@ class MainGameLoop:
 # TODO:
 
 # Things to make variable:
-    # Commmunication topologies
-    # Amount of knowledge past to agents
-    # The agent personas
-    # Which steps are taken (i.e. skip communication)
-    # Method of conversation (i.e. number of rounds)
-    # Whether logits/actual stuff is used
+# Commmunication topologies
+# Amount of knowledge past to agents
+# The agent personas
+# Which steps are taken (i.e. skip communication)
+# Method of conversation (i.e. number of rounds)
+# Whether logits/actual stuff is used
 
 # Make interoperable with stuff like OpenSpiel and Gymnasium
 
 from configs.prompt_config import game_prompts
 if __name__ == "__main__":
+    print("Here")
     game_config = GameConfig(num_rounds=10, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
-    
+
     game_prompt = game_prompts.get("neutral")
     agent_configs = [
         AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini")), 

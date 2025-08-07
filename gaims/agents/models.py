@@ -262,8 +262,6 @@ class LocalModel(Model):
         # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed, full_response.get("raw", HumanMessage(content="")).content # type: ignore
-    
-        
        
 
         # Manually parse response

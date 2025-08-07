@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import torch
+from torch.utils.data import DataLoader, Dataset
 
 load_dotenv()
 
@@ -27,35 +28,59 @@ logger = logging.getLogger(__name__)
 
 
 from gaims.configs.prompt_config import game_prompts
-if __name__ == "__main__":
+
+
+class Activations(Dataset):
+    def __init__(self):
+        self.activations = []
+        self.cooperate = []
+        self.defect = []
+        self.scheme = []
+        self.collude = []
+    
+    def __len__(self):
+        return len(self.activations)
+    
+    def __getitem__(self, idx):
+        return self.activations[idx], self.cooperate[idx], self.defect[idx], self.scheme[idx], self.collude[idx]
+
+
+
+
+def main():
+    activations = Activations()
     torch.cuda.empty_cache()
 
-    game_config = GameConfig(num_rounds=10, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
+    for game_class in ["cooperate", "defect", "chicken", "battle_of_the_sexes", "stag_hunt", "prisoners_dilemma"]
+        
+        game_config = GameConfig(num_rounds=1, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
 
-    game_prompt = game_prompts.get("neutral")
-    agent_configs = [
-        AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
-        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"]))
-    ]
+        game_prompt = game_prompts.get("neutral")
+        agent_configs = [
+            AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
+            AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
+        ]
 
-    agents = [Agent(config) for config in agent_configs]
+        agents = [Agent(config) for config in agent_configs]
 
-    if game_config.game_type == "matrix_game":
-        game_state = MatrixGameState(game_config)
-    elif game_config.game_type == "resource_sharing":
-        game_state = ResourceSharingGameState(game_config)
-    elif game_config.game_type == "negotiation":
-        game_state = NegotiationGameState(game_config)
+        if game_config.game_type == "matrix_game":
+            game_state = MatrixGameState(game_config, game_type=game_class)
+        elif game_config.game_type == "resource_sharing":
+            game_state = ResourceSharingGameState(game_config)
+        elif game_config.game_type == "negotiation":
+            game_state = NegotiationGameState(game_config)
 
-    env = GaimsEnv(game_config, agent_configs, game_state, agents)
+        env = GaimsEnv(game_config, agent_configs, game_state, agents)
+        
+        obs, info = env.reset()
+        done = False
+        while not done:
+            env.render()
+            action = env.action_space.sample() # Sample a random action
+            obs, reward, done, info = env.step(action)
+            print(f"Reward: {reward}")
+            print(f"Nash Equilibria: {info['nash_equilibria']}")
+        
+        env.close()
+
     
-    obs, info = env.reset()
-    done = False
-    while not done:
-        env.render()
-        action = env.action_space.sample() # Sample a random action
-        obs, reward, done, info = env.step(action)
-        print(f"Reward: {reward}")
-        print(f"Nash Equilibria: {info['nash_equilibria']}")
-
-    env.close()

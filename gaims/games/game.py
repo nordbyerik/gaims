@@ -21,6 +21,11 @@ class GameState(ABC):
     def step(self):
         pass
 
+    def reset(self):
+        self.round = 0
+        self.actions = []
+
+
     def update(self, new_state: Dict[str, Any]):
         self.state.update(new_state)
 

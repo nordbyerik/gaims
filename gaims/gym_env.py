@@ -64,13 +64,7 @@ class GaimsEnv(gym.Env):
 
     def reset(self):
         # Reset the state of the environment to an initial state
-        self.game_state.round = 0
-        self.game_state.actions = []
-        self.game_state.player_utility = 0
-        self.game_state.payoff_matrix = self.game_state.generate_random_payoffs()
-        self.game_state.nash_equilibria = (
-            self.game_state.find_pure_strategy_nash_equilibria()
-        )
+        self.game_state.reset()
         return self.game_state.get_state(), {
             "nash_equilibria": self.game_state.nash_equilibria
         }
@@ -80,3 +74,6 @@ class GaimsEnv(gym.Env):
         print(f"Round: {self.game_state.round}")
         print(f"Player Utility: {self.game_state.player_utility}")
         print(f"Payoff Matrix: \n{self.game_state.payoff_matrix}")
+
+    def get_activations(self):
+        return self.agent_activations

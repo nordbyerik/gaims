@@ -12,7 +12,7 @@ class PromptConfig(ABC):
         # Player and Round Information (for general intro)
         self.players_info_header = template.get('players_info_header', "There are {num_players} players in total.\n")
         self.agent_identity_header = template.get(
-            "agent_identity_header", "You are player {agent_id}.\n"
+            "agent_identity_header", "You are {agent_id}.\n"
         )
         self.finite_rounds_header = template.get('finite_rounds_header', "You will play {rounds} rounds in total.\n")
         # For finite games with current round:
@@ -33,7 +33,7 @@ class PromptConfig(ABC):
         # Payoff Rules Templates (used in _format_payoff_rules)
         # Note: The original snippet had a self.player_header for payouts that was overwritten.
         # We introduce a specific template for the payoff section header.
-        self.payoff_section_header = template.get('payoff_section_header', "Payoff Details (for you, Player {agent_id}):\n")
+        self.payoff_section_header = template.get('payoff_section_header', "Payoff Details (for you, {agent_id}):\n")
         # These are from the original "Action section"
         self.action_header = template.get('action_header', "  If you choose {player_action}, your potential outcomes are:\n")
         self.payoff_line = template.get('payoff_line', "    - Paired against another player's action {opponent_action}: Your Result = {payoff}")
@@ -130,7 +130,7 @@ class PromptConfig(ABC):
         if 'num_players' in context:
             prompt += self.players_info_header.format(num_players=context['num_players'])
         if 'agent_id' in context:
-            prompt += self.agent_identity_header.format(agent_id=context["agent_id"])
+            prompt += self.agent_identity_header.format(agent_id=f"{self.agent_names[int(context['agent_id'])]}")
 
         # Round information
         num_rounds = context.get('num_rounds')

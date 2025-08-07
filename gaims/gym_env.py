@@ -5,7 +5,7 @@ import numpy as np
 from gaims.games.matrix_games.matrix_game import MatrixGameState, MatrixAction
 from gaims.configs.game_config import GameConfig
 from gaims.configs.agent_config import AgentConfig
-from gaims.agents.models import ModelConfig
+from gaims.agents.models import ModelConfig, LocalModel
 from gaims.configs.prompt_config import game_prompts
 
 class GaimsEnv(gym.Env):
@@ -22,7 +22,13 @@ class GaimsEnv(gym.Env):
         self.action_space = spaces.Discrete(self.game_config.num_actions)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=self.game_state.payoff_matrix.shape, dtype=np.float32)
 
+        self.agent_activations = {}
+
     def step(self, action):
+
+        # Observe
+        # Communicate
+
         # All agents take an action
         actions = []
         for agent in self.agents:
@@ -33,6 +39,12 @@ class GaimsEnv(gym.Env):
                 "round": self.game_state.round,
             }
             agent_action = agent.act(context)
+            if type(agent.model) == LocalModel:
+
+                for key in agent.model.hooks.keys():
+                    if key not in self.agent_activations.keys():
+                        self.agent_activations[key] = []
+                    self.agent_activations[key].append(agent.model.get_activations(key))
             matrix_action = MatrixAction(
                 agent_id=agent.id, action_id=agent_action.action_id
             )

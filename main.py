@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import torch
 
 load_dotenv()
-print(os.getenv("GOOGLE_API_KEY"))  # Should not be None
 
 from typing import Any, List
 
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     game_prompt = game_prompts.get("neutral")
     agent_configs = [
         AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
-        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
+        AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"]))
     ]
 
     agents = [Agent(config) for config in agent_configs]

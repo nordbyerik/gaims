@@ -102,12 +102,13 @@ class Model(ABC):
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
         
+        # Manually parse response
+        raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
+
         # If parsed return 
         if parsed := full_response.get("parsed"):
             return parsed
 
-        # Manually parse response
-        raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
         
         try:
             return structure.model_validate_json(raw_response_content) # type: ignore
@@ -155,9 +156,10 @@ class Model(ABC):
     def act(self, message: str, **kwargs) -> Action: # type: ignore
         response = self.send_message(message, structure=ActionStructure, **kwargs)
         if not isinstance(response, ActionStructure):
-            # Handle error or convert
+            if isinstance(response, int):
+                return Action(agent_id=self._identifier, action_id=response)
             raise TypeError(f"Expected ActionStructure, got {type(response)}")
-        return Action(agent_id=int(self._identifier), action_id=response.action_id) # type: ignore
+        return Action(agent_id=self._identifier, action_id=response.action_id) # type: ignore
 
 
 class GeminiModel(Model):
@@ -184,7 +186,7 @@ class LocalModel(Model):
         )
 
         pipe = pipeline(
-            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=256
+            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=512
         )
         hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
@@ -230,11 +232,11 @@ class LocalModel(Model):
         messages.append(HumanMessage(content=message))
 
         if structure is not None:
-            response_content = self._handle_structured_response(messages, structure)
+            response_content, raw = self._handle_structured_response(messages, structure)
         else:
-            response_content = self._handle_unstructured_response(messages)
+            response_content, raw = self._handle_unstructured_response(messages)
 
-        log.info(f"{self._identifier} -->: {response_content}")
+        log.info(f"{self._identifier} -->: {raw}")
         return response_content
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
@@ -255,10 +257,11 @@ class LocalModel(Model):
         """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
+        raw_response = full_response.get("raw", HumanMessage(content="")).content
 
         # If parsed return
         if parsed := full_response.get("parsed"):
-            return parsed
+            return parsed, full_response.get("raw", HumanMessage(content="")).content # type: ignore
     
         
        
@@ -266,18 +269,17 @@ class LocalModel(Model):
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
-        try:
-            assistant_response = raw_response_content.split(messages[-1].content)[-1]
-            numbers = re.findall(r'\d+', assistant_response)
-
-            return numbers[-1] if numbers else None
+        assistant_response = raw_response_content.split(messages[-1].content)[-1]
+        numbers = re.findall(r'\d+', assistant_response)
+        if numbers:
+            return int(numbers[-1]), raw_response_content
         
-        except:
-            raise  StructureParsingException(
-                f"Failed to parse extracted content into structure: {e}", 
-                raw_response_content, 
-                structure
-            )
+
+        raise  StructureParsingException(
+            f"Failed to parse extracted content into structure: {e}", 
+            raw_response_content, 
+            structure
+        )
 
     def _handle_unstructured_response(self, messages: list[BaseMessage]) -> str:
         """
@@ -339,9 +341,6 @@ class ModelFactory:
         requested_model_name = model_config.model_name # This is "gemini" or an HF repo_id
 
         if requested_model_name == "gemini":
-            # You might want to allow specifying the exact Gemini model via ModelConfig
-            # e.g., if model_config could have model_config.gemini_model_version
-            # For now, using the default in GeminiModel or a fixed one here.
             if "gemini" not in model_registry: # Cache Gemini model instance as well
                 model_registry["gemini"] = GeminiModel(identifier="gemini_default_instance", model="gemini-1.5-flash")
             return model_registry["gemini"]

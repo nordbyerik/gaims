@@ -46,7 +46,8 @@ class SystemPromptConfig:
 
 class AgentConfig:
     def __init__(self, 
-                 id: str, prompt_config: PromptConfig, 
+                 id: str, 
+                 prompt_config: PromptConfig, 
                  system_prompt_config: SystemPromptConfig = SystemPromptConfig("neutral"),
                  model_config: ModelConfig = ModelConfig(model_name="gemini")
                  ):

@@ -71,12 +71,13 @@ def main():
     for i in range(500):
         for game_class in ["cooperate", "defect"]:
             
-            game_config = GameConfig(num_rounds=1, num_actions=2, num_agents=2, game_type="matrix_game", observe=True, communicate=True, act=True)
+            game_config = GameConfig(num_rounds=1, num_actions=2, num_agents=2, game_type="matrix_game", observe=False, communication_type=None)
 
-            game_prompt = game_prompts.get("neutral")
+            prompt_config = game_prompts.get("neutral")
+            
             agent_configs = [
-                AgentConfig(id=0, prompt_config=game_prompt, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
-                AgentConfig(id=1, prompt_config=game_prompt, model_config=ModelConfig(model_name="gemini"))
+                AgentConfig(id=0, prompt_config=prompt_config, model_config=ModelConfig(model_name="unsloth/gpt-oss-20b", activation_layers=["model.layers.0.mlp", "model.layers.1.self_attn"])), 
+                AgentConfig(id=1, prompt_config=prompt_config, model_config=ModelConfig(model_name="gemini"))
             ]
 
             agents = [Agent(config) for config in agent_configs]

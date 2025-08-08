@@ -10,8 +10,7 @@ class GameConfig:
                  stakes: str = 'neutral', 
                  framing: str = 'neutral',
                  observe: bool = False,
-                 communicate: bool = False,
-                 act: bool = True,
+                 communication_type: str = False,
                  **kwargs
                  ):
         
@@ -23,8 +22,7 @@ class GameConfig:
         self.stakes = stakes
         self.framing = framing
 
-        self.act = act
-        self.communicate = communicate
+        self.communication_type = communication_type
         self.observe = observe
 
         for key, value in kwargs.items():

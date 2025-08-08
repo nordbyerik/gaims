@@ -6,7 +6,6 @@ from gaims.games.action import Action
 from gaims.agents.models import Model, ModelFactory
 
 from gaims.configs.agent_config import AgentConfig
-from gaims.configs.prompt_config import PromptConfig
 
 class Agent():
     def __init__(self, agent_config: AgentConfig):

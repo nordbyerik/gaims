@@ -2,7 +2,6 @@ from typing import List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
 from gaims.agents.agent import Agent
-from gaims.communication.communication import CommunicationMediumFactory
     
 
 from gaims.configs.game_config import GameConfig
@@ -13,6 +12,9 @@ class GameState(ABC):
         self.actions = []
         for key, value in kwargs.items():
             setattr(self, key, value)
+        
+        self.observe = game_config.observe
+        
         
     def step_agent(self, action: Any):
         self.actions.append(( action, self.round))

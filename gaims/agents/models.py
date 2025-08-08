@@ -15,6 +15,7 @@ from gaims.utils.huggingface_langchain import ChatHuggingFace
 # Assuming these are correctly defined in your project structure
 from gaims.games.action import Action # type: ignore
 from gaims.communication.communication import Message # type: ignore
+from gaims.utils.parse_special_tokens import parse_special_tokens
 
 from pydantic import BaseModel, Field
 from typing import List # type: ignore
@@ -85,20 +86,6 @@ class Model(ABC):
         return response_content
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
-        """
-        Handles sending messages to the LLM when a structured response is expected.
-
-        Args:
-            messages: A list of BaseMessage objects to send to the LLM.
-            structure: The Pydantic BaseModel class to parse the response into.
-
-        Returns:
-            An instance of the provided `structure` BaseModel with data from the LLM's response.
-
-        Raises:
-            StructureParsingException: If the raw response content cannot be converted to the structure.
-            ValueError: If the generation begin token is not found in the model's response.
-        """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
         
@@ -109,7 +96,6 @@ class Model(ABC):
         if parsed := full_response.get("parsed"):
             return parsed
 
-        
         try:
             return structure.model_validate_json(raw_response_content) # type: ignore
         except Exception as e:
@@ -121,27 +107,11 @@ class Model(ABC):
             )
 
     def _handle_unstructured_response(self, messages: list[BaseMessage]) -> str:
-        """
-        Handles sending messages to the LLM when an unstructured string response is expected.
-
-        Args:
-            messages: A list of BaseMessage objects (system and human messages) to send to the LLM.
-
-        Returns:
-            A string containing the cleaned response content from the LLM.
-
-        Raises:
-            ValueError: If the generation prompt is not found in the model's response
-                        during the cleaning process.
-        """
         return self.llm.invoke(messages).content
 
     def observe(self, message: str, **kwargs) -> str: # type: ignore
-        # Assuming observe is meant to return a string response directly
         response = self.send_message(message, **kwargs)
         if not isinstance(response, str):
-            # Handle cases where a structured response might be returned but a string is expected
-            # This might involve serializing the BaseModel or accessing a specific field
             return str(response)
         return response
 
@@ -149,7 +119,6 @@ class Model(ABC):
     def communicate(self, message: str, **kwargs) -> Message: # type: ignore
         response = self.send_message(message, structure=MessageStructure, **kwargs)
         if not isinstance(response, MessageStructure):
-             # Handle error or convert if possible, e.g. if response is raw string due to parsing fail
             raise TypeError(f"Expected MessageStructure, got {type(response)}")
         return Message(sender=self._identifier, receiver=response.receiver, message_content=response.message_content) # type: ignore
 
@@ -214,23 +183,6 @@ class LocalModel(Model):
             raise ValueError(f"No activation hook registered for layer: {layer_name}")
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
-        """
-        Sends a message to the language model and returns the response, optionally parsed into a Pydantic model.
-
-        Args:
-            message: The primary message content to send to the model.
-            structure: An optional class. If provided, the model's response
-                       will be parsed into an instance of this class.
-            system_prompt: An optional system message to guide the model's behavior.
-
-        Returns:
-            If `structure` is provided, returns an instance of the `structure` BaseModel.
-            Otherwise, returns the raw string response from the model.
-
-        Raises:
-            StructureParsingException: If the raw response content cannot be converted to the structure.
-            ValueError: If the generation begin token is not found in the model's response.
-        """
         log.info(f"--> {self._identifier}: {message}")
 
         messages = []
@@ -241,10 +193,13 @@ class LocalModel(Model):
         if structure is not None:
             response_content, raw = self._handle_structured_response(messages, structure)
         else:
-            response_content, raw = self._handle_unstructured_response(messages)
+            response_content = raw = self._handle_unstructured_response(messages)
 
         log.info(f"{self._identifier} -->: {raw}")
         return response_content
+    
+
+
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         """
@@ -264,14 +219,11 @@ class LocalModel(Model):
         """
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
-        raw_response = full_response.get("raw", HumanMessage(content="")).content
 
-        # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed, full_response.get("raw", HumanMessage(content="")).content # type: ignore
        
 
-        # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
         assistant_response = raw_response_content.split(messages[-1].content)[-1]
@@ -302,6 +254,7 @@ class LocalModel(Model):
                         during the cleaning process.
         """
         response_content = self.llm.invoke(messages).content
+        response_content = response_content.split(messages[-1].content)[-1]
         response_content = self._clean_model_tags(response_content)
         return response_content
 
@@ -321,15 +274,9 @@ class LocalModel(Model):
             ValueError: If `tokenizer.apply_chat_template` does not produce a string found within 
                         the input `text`.
         """
-        # Get the generation prompt and remove everything prior to it
-        messages_start = self.tokenizer.apply_chat_template("", tokenize=False, add_generation_prompt=True)        
-        if messages_start in text:
-            cleaned_text = text.split(messages_start)[-1]
-        else:
-            raise ValueError("Generation prompt not found in the response text.")
 
         # Strip any additional special tokens
-        token_ids = self.tokenizer.encode(cleaned_text, add_special_tokens=False)
+        token_ids = self.tokenizer.encode(text, add_special_tokens=False)
         cleaned_text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
         cleaned_text = cleaned_text.strip()

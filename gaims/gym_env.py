@@ -7,6 +7,7 @@ from gaims.configs.game_config import GameConfig
 from gaims.configs.agent_config import AgentConfig
 from gaims.agents.models import ModelConfig, LocalModel
 from gaims.configs.prompt_config import game_prompts
+from gaims.communication.communication import CommunicationMediumFactory
 
 class GaimsEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -19,6 +20,10 @@ class GaimsEnv(gym.Env):
         self.game_state = game_state
         self.agents = agents
 
+        self.communication_medium = None
+        if game_config.communication_type != None:
+            self.communication_medium = CommunicationMediumFactory.create_communication_medium(game_config.type)
+
         self.action_space = spaces.Discrete(self.game_config.num_actions)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=self.game_state.payoff_matrix.shape, dtype=np.float32)
 
@@ -27,7 +32,33 @@ class GaimsEnv(gym.Env):
     def step(self, action):
 
         # Observe
+        if self.game_state.observe:
+            for agent in self.agents:
+                context = {
+                    "agent_id": agent.id,
+                    "state": self.game_state.get_state(),
+                    "round": self.game_state.round,
+                    "communication_partners": self.game_config.
+                }
+                agent.observe(context)
+
         # Communicate
+        if self.game_state.communication_type != None:
+            for agent in self.agents:
+                context = {
+                    "agent_id": agent.id,
+                    "state": self.game_state.get_state(),
+                    "round": self.game_state.round,
+                }
+                agent.communicate(context)
+
+        for agent in self.agents:
+            context = {
+                "agent_id": agent.id,
+                "state": self.game_state.get_state(),
+                "round": self.game_state.round,
+            }
+            agent.observe_communication(context)
 
         # All agents take an action
         actions = []
@@ -50,6 +81,7 @@ class GaimsEnv(gym.Env):
             )
             actions.append({"agent_id": agent.id, "action": matrix_action})
 
+        # TODO: Roll this into the game_state.step()
         for act in actions:
             self.game_state.step_agent(act['action'])
 

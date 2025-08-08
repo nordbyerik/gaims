@@ -4,9 +4,9 @@ from typing import Dict, List, Any
 
 class PromptConfig(ABC):
     def __init__(self, template: Dict[str, str], action_names: List[str], agent_names: List[str]):
-
+        # TODO: Move agent persona to agent config
         self.system_prompt = template.get('system_prompt', "You are an AI agent participating in a game.")
-
+        # TODO: Move game and action stuff to the game config
         self.game_header = template.get('game_header', "You are participating in a game.\n")
 
         # Player and Round Information (for general intro)
@@ -155,7 +155,7 @@ class PromptConfig(ABC):
             prompt += self.finite_rounds_header.format(rounds=num_rounds)
 
         # Communication information
-        if context.get('can_communicate_all', False):
+        if context.get('communication_partners', False) == 'all':
             prompt += self.communication_allowed_all
         elif context.get('communication_partners'):
             partners_str = ", ".join(map(str, context['communication_partners']))

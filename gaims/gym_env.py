@@ -68,6 +68,17 @@ class GaimsEnv(gym.Env):
         return self.game_state.get_state(), {
             "nash_equilibria": self.game_state.nash_equilibria
         }
+    
+    def gather_steps(self):
+        """
+        Instead of running the full simulation, just gather the prompts
+        """
+        for agent in self.agents:
+            context = {
+                "agent_id": agent.id,
+                "state": self.game_state.get_state(),
+                "round": self.game_state.round,
+            }
 
     def render(self, mode='human', close=False):
         # Render the environment to the screen

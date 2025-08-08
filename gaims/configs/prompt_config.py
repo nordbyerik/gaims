@@ -37,7 +37,7 @@ class PromptConfig(ABC):
         # These are from the original "Action section"
         self.action_header = template.get('action_header', "  If you choose {player_action}, your potential outcomes are:\n")
         self.payoff_line = template.get('payoff_line', "    - Paired against another player's action {opponent_action}: Your Result = {payoff}")
-        # self.opponent_payoff template is no longer used to maintain N-player generality easily.
+        self.opponent_payoff_line = template.get('opponent_payoff_line', " Other Player's Result = {opponent_payoff}")
 
         # Action Query Templates (used in format_action_context)
         self.action_query = template.get('action_query', "Which action will you choose? ")
@@ -100,6 +100,7 @@ class PromptConfig(ABC):
                     try:
                         # Direct indexing for list of lists or numpy array
                         own_payoff = payoff_matrix[agent_id][player_action_idx][opponent_action_idx]
+                        opponent_payoff = payoff_matrix[1-agent_id][player_action_idx][opponent_action_idx]
                     except IndexError:
                         own_payoff = "N/A (IndexError)"
                     except TypeError: # E.g. if payoff_matrix is not subscriptable as expected
@@ -111,6 +112,9 @@ class PromptConfig(ABC):
                     rules_prompt += self.payoff_line.format(
                         opponent_action=opponent_action_name,
                         payoff=own_payoff
+                    )
+                    rules_prompt += self.opponent_payoff_line.format(
+                        opponent_payoff=opponent_payoff
                     )
                 rules_prompt += self.newline # Add a newline after all outcomes for a player_action
 
@@ -256,7 +260,7 @@ template_neutral = {
     'player_header': "Evaluate your choices.\nIf you select:\n",
     'action_header': " {player_action}, consider the potential outcomes:\n",
     'payoff_line': "    Paired against {opponent_action}: Result = {payoff}",
-    'opponent_payoff': " (Opponent Result: {opponent_payoff})",
+    'opponent_payoff_line': " (Opponent Result: {opponent_payoff})",
     'newline': "\n",
     'options': 'Which will you choose? (0 for {action_zero}, 1 for {action_one}) ',
     'cue': 'Input your choice (0/1):'
@@ -270,7 +274,7 @@ template_business = {
     'player_header': "Your Firm's Strategic Options:\n",
     'action_header': " Option: {player_action}\nWhat happens if you take this path?\n",
     'payoff_line': "    If your competitor chooses {opponent_action}, your profit is {payoff}.",
-    'opponent_payoff': " (Competitor's profit: {opponent_payoff})",
+    'opponent_payoff_line': " (Competitor's profit: {opponent_payoff})",
     'newline': "\n",
     'options': 'Select strategy: 0 = {action_zero}, 1 = {action_one}. ',
     'cue': 'Decision (0 or 1) -> '
@@ -284,7 +288,7 @@ template_investment = {
     'player_header': "Considering your investment level:\n",
     'action_header': " If you choose to '{player_action}':\n",
     'payoff_line': "    Should your partner '{opponent_action}', your return is {payoff}.",
-    'opponent_payoff': " (Partner's return: {opponent_payoff})",
+    'opponent_payoff_line': " (Partner's return: {opponent_payoff})",
     'newline': "\n",
     'options': 'Choose 0 ({action_zero}) or 1 ({action_one}) ',
     'cue': 'Investment Level (0/1): '
@@ -298,7 +302,7 @@ template_security = {
     'player_header': "Your nation's potential actions:\n",
     'action_header': " Policy Decision: {player_action}\nConsequences are as follows:\n",
     'payoff_line': "    Versus their choice of '{opponent_action}': National Security Index = {payoff}.",
-    'opponent_payoff': " (Adversary's Index: {opponent_payoff})",
+    'opponent_payoff_line': " (Adversary's Index: {opponent_payoff})",
     'newline': "\n",
     'options': 'Enter 0 to {action_zero}, or 1 to {action_one}. ',
     'cue': 'Directive (0 or 1): '
@@ -312,7 +316,7 @@ template_intel = {
     'player_header': "Regarding sensitive information, you could:\n",
     'action_header': " {player_action} with your ally.\nHere's the breakdown:\n",
     'payoff_line': "    If they decide to '{opponent_action}': Your strategic advantage is {payoff}.",
-    'opponent_payoff': " (Ally's advantage: {opponent_payoff})",
+    'opponent_payoff_line': " (Ally's advantage: {opponent_payoff})",
     'newline': "\n",
     'options': 'Make your choice: 0={action_zero}, 1={action_one}? ',
     'cue': 'Decision (0 or 1): '
@@ -326,7 +330,7 @@ template_moral = {
     'player_header': "What path will you walk? If you choose to...\n",
     'action_header': " {player_action}...\n...the consequences unfold:\n",
     'payoff_line': "    Against their choice to '{opponent_action}': Your fate yields {payoff} points.",
-    'opponent_payoff': " (Their fate: {opponent_payoff} points)",
+    'opponent_payoff_line': " (Their fate: {opponent_payoff} points)",
     'newline': "\n",
     'options': 'Temptation calls... Choose 0 ({action_zero}) or 1 ({action_one})! ',
     'cue': 'Your Soul\'s Choice (0 or 1): '
@@ -340,7 +344,7 @@ template_environmental = {
     'player_header': "Your country's environmental policy choice impacts everyone.\nIf you choose to:\n",
     'action_header': " {player_action}:\n",
     'payoff_line': "    And the other major nation chooses to '{opponent_action}': Your economic score is {payoff}.",
-    'opponent_payoff': " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
+    'opponent_payoff_line': " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
     'newline': "\n",
     'options': 'Policy: 0 for {action_zero}, 1 for {action_one}. ',
     'cue': 'Select Policy (0/1): '
@@ -354,7 +358,7 @@ template_social = {
     'player_header': "How much will you contribute to the shared goal?\n",
     'action_header': "If you decide to '{player_action}':\n",
     'payoff_line': "    When your partner decides to '{opponent_action}': Your personal benefit is {payoff}.",
-    'opponent_payoff': " (Partner's benefit: {opponent_payoff})",
+    'opponent_payoff_line': " (Partner's benefit: {opponent_payoff})",
     'newline': "\n",
     'options': 'What will you do? [0: {action_zero}, 1: {action_one}] ',
     'cue': 'Your Action (0 or 1): '

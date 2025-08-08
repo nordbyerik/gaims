@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 load_dotenv()
@@ -56,7 +57,7 @@ class Activations(Dataset):
 class LinearProbe(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(LinearProbe, self).__init__()
-        self.linear = nn.Linear(input_dim, output)
+        self.linear = nn.Linear(input_dim, 1)
     
     def forward(self, x):
         return self.linear(x)
@@ -109,10 +110,10 @@ def main():
 
     linear_probe = LinearProbe(activations.activations.shape[1], 1)
 
-    dataloader = DataLoader(activations_dataset, batch_size=32, shuffle=True)
+    dataloader = DataLoader(activations, batch_size=32, shuffle=True)
 
     # Instantiate the linear probe
-    probe = LinearProbe(input_size=input_size, output_size=2)
+    probe = LinearProbe(input_size=activations.activations.shape[1], output_size=2)
 
     # Define loss function (Cross-Entropy for classification) and optimizer (Adam)
     criterion = nn.CrossEntropyLoss()
@@ -153,3 +154,7 @@ def main():
 
     accuracy = 100 * correct / total
     print(f"Accuracy of the linear probe on the dataset: {accuracy:.2f}%")
+
+
+if __name__ == "__main__":
+    main()

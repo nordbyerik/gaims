@@ -162,8 +162,15 @@ class Model(ABC):
         return Action(agent_id=self._identifier, action_id=response.action_id) # type: ignore
 
 
+class RandomModel(Model):
+    def __init__(self, identifier: str | None = None, model: str = "random"):
+        super().__init__(identifier, model)
+
+    def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
+        return random.randint(0, 1)
+
 class GeminiModel(Model):
-    def __init__(self, identifier: str | None = None, model: str = "gemini-1.5-flash"): # Updated default model
+    def __init__(self, identifier: str | None = None, model: str = "gemini-2.0-flash-lite"): # Updated default model
         super().__init__(identifier, model) # Pass model string (e.g. "gemini-1.5-flash") as model_name
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         if not gemini_api_key:
@@ -186,7 +193,7 @@ class LocalModel(Model):
         )
 
         pipe = pipeline(
-            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=512
+            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=1024
         )
         hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
@@ -340,8 +347,12 @@ class ModelFactory:
 
         if requested_model_name == "gemini":
             if "gemini" not in model_registry: # Cache Gemini model instance as well
-                model_registry["gemini"] = GeminiModel(identifier="gemini_default_instance", model="gemini-1.5-flash")
+                model_registry["gemini"] = GeminiModel(identifier="gemini_default_instance", model="gemini-2.0-flash-lite")
             return model_registry["gemini"]
+        elif requested_model_name == "llama":
+            if "random" not in model_registry:
+                model_registry["random"] = RandomModel()
+            return model_registry["random"]
         else:
             # requested_model_name is treated as a Hugging Face repo_id
             hf_repo_id = requested_model_name

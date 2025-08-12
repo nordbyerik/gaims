@@ -27,7 +27,7 @@ class MatrixGameState(GameState):
             if round == self.round:
                 actions[action.agent_id] = action.action_id
 
-        self.player_utility += self.payoff_matrix[actions[0], actions[1], 0]
+        self.player_utility += self.payoff_matrix[actions[0], actions[1], :]
         self.round += 1
 
     def reset(self):
@@ -46,14 +46,14 @@ class MatrixGameState(GameState):
             self.payoff_matrix = self.generate_random_cooperate()
         elif self.game_type == "defect":
             self.payoff_matrix = self.generate_random_defect()
-        
+
         self.round = 0
         self.player_utility = 0
         self.nash_equilibria = self.find_pure_strategy_nash_equilibria()
 
     def get_state(self) -> Dict[str, Any]:
         return {"player_utility": self.player_utility, "payoff_matrix": self.payoff_matrix}
-          
+
     def __str__(self):
         return_string = ""
         return_string += f"Matrix Game with {self.game_config.num_agents} players and {self.game_config.num_actions} actions per player\n"
@@ -62,7 +62,6 @@ class MatrixGameState(GameState):
 
     def generate_random_payoffs(self):
         return torch.randint(-2, 2, (self.game_config.num_actions, self.game_config.num_actions, 2))
-
 
     def generate_random_prisoners_dilemma(self):
         # Cooperate (0), Defect (1)
@@ -85,7 +84,7 @@ class MatrixGameState(GameState):
         C = torch.randint(P + 1, P + 5, (1,)).item()
         T = torch.randint(C + 1, C + 5, (1,)).item()
         S = torch.randint(T + 1, T + 5, (1,)).item()
-        
+
         payoff_matrix = torch.tensor([
             [[C, C], [T, S]],
             [[S, T], [P, P]]
@@ -98,34 +97,33 @@ class MatrixGameState(GameState):
         C = torch.randint(-5, 0, (1,)).item()
         B = torch.randint(C + 1, C + 5, (1,)).item()
         A = torch.randint(B + 1, B + 5, (1,)).item()
-        
+
         payoff_matrix = torch.tensor([
             [[A, B], [C, C]],
             [[C, C], [B, A]]
         ], dtype=torch.float32)
         return payoff_matrix
-    
+
     def generate_random_stag_hunt(self):
         # Stag (0), Hare (1)
         # Condition: A > B > C
         C = torch.randint(-5, 0, (1,)).item()
         B = torch.randint(C + 1, C + 5, (1,)).item()
         A = torch.randint(B + 1, B + 5, (1,)).item()
-        
+
         payoff_matrix = torch.tensor([
             [[A, A], [C, B]],
             [[B, C], [B, B]]
         ], dtype=torch.float32)
         return payoff_matrix
 
-
     def generate_random_cooperate(self):
         p1_defect_c = torch.randint(-5, 5, (1,)).item()
         p1_defect_d = torch.randint(-5, 5, (1,)).item()
-        
+
         p1_cooperate_c = torch.randint(p1_defect_c + 1, p1_defect_c + 10, (1,)).item()
         p1_cooperate_d = torch.randint(p1_defect_d + 1, p1_defect_d + 10, (1,)).item()
-        
+
         p2_cooperate_c = torch.randint(-5, 5, (1,)).item()
         p2_defect_c = torch.randint(-5, 5, (1,)).item()
         p2_cooperate_d = torch.randint(-5, 5, (1,)).item()
@@ -140,7 +138,7 @@ class MatrixGameState(GameState):
     def generate_random_defect(self):
         p1_cooperate_c = torch.randint(-5, 5, (1,)).item()
         p1_cooperate_d = torch.randint(-5, 5, (1,)).item()
-        
+
         p1_defect_c = torch.randint(p1_cooperate_c + 1, p1_cooperate_c + 10, (1,)).item()
         p1_defect_d = torch.randint(p1_cooperate_d + 1, p1_cooperate_d + 10, (1,)).item()
 

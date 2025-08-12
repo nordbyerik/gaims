@@ -40,9 +40,17 @@ class ActionStructure(BaseModel):
     action_id: int = Field(description="The action to take")
 
 class ModelConfig():
-    def __init__(self, model_name: str, activation_layers: list[str] | None = None): # model_name here is the HF repo ID or "gemini"
+
+    def __init__(
+        self,
+        model_name: str,
+        activation_layers: list[str] | None = None,
+        max_tokens: int = 1024,
+    ):  # model_name here is the HF repo ID or "gemini"
         self.model_name = model_name
         self.activation_layers = activation_layers
+        self.max_tokens = max_tokens
+
 
 class Model(ABC):
     def __init__(self, identifier: str | None = None, model_name: str = "unsloth/Llama-3.2-3B-Instruct"):
@@ -76,7 +84,7 @@ class Model(ABC):
         if system_prompt:
             messages.append(SystemMessage(content=system_prompt))
         messages.append(HumanMessage(content=message))
-        
+
         if structure is not None:
             response_content = self._handle_structured_response(messages, structure)
         else:
@@ -88,11 +96,11 @@ class Model(ABC):
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
-        
+
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
-        # If parsed return 
+        # If parsed return
         if parsed := full_response.get("parsed"):
             return parsed
 
@@ -115,12 +123,22 @@ class Model(ABC):
             return str(response)
         return response
 
-
     def communicate(self, message: str, **kwargs) -> Message: # type: ignore
         response = self.send_message(message, structure=MessageStructure, **kwargs)
-        if not isinstance(response, MessageStructure):
-            raise TypeError(f"Expected MessageStructure, got {type(response)}")
-        return Message(sender=self._identifier, receiver=response.receiver, message_content=response.message_content) # type: ignore
+
+        if isinstance(response, MessageStructure):
+            reciever = response.receiver if response.receiver else None
+            message_content = (
+                response.message_content if response.message_content else None
+            )
+        elif isinstance(response, str):
+            reciever = None
+            message_content = response
+        else:
+            reciever = None
+            message_content = str(response)
+
+        return Message(sender=self._identifier, receiver=reciever, message_content=message_content)  # type: ignore
 
     def act(self, message: str, **kwargs) -> Action: # type: ignore
         response = self.send_message(message, structure=ActionStructure, **kwargs)
@@ -151,7 +169,12 @@ from gaims.utils.activation_hook import ActivationHook
 
 class LocalModel(Model):
     # Parameter 'hf_repo_id' is the string like "microsoft/Phi-3-mini-4k-instruct"
-    def __init__(self, hf_repo_id: str = "openai/gpt-oss-20b", activation_layers: list[str] | None = None):
+    def __init__(
+        self,
+        hf_repo_id: str = "openai/gpt-oss-20b",
+        activation_layers: list[str] | None = None,
+        max_tokens: int = 1024,
+    ):
         # Pass hf_repo_id as both the instance identifier and the model_name to the base class.
         super().__init__(identifier=hf_repo_id, model_name=hf_repo_id)
 
@@ -162,7 +185,10 @@ class LocalModel(Model):
         )
 
         pipe = pipeline(
-            "text-generation", model=self.model, tokenizer=self.tokenizer, max_new_tokens=1024
+            "text-generation",
+            model=self.model,
+            tokenizer=self.tokenizer,
+            max_new_tokens=max_tokens,
         )
         hf_pipeline_wrapper = HuggingFacePipeline(pipeline=pipe)
 
@@ -197,9 +223,6 @@ class LocalModel(Model):
 
         log.info(f"{self._identifier} -->: {raw}")
         return response_content
-    
-
-
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         """
@@ -221,16 +244,21 @@ class LocalModel(Model):
         full_response = llm_with_structure.invoke(messages)
 
         if parsed := full_response.get("parsed"):
-            return parsed, full_response.get("raw", HumanMessage(content="")).content # type: ignore
-       
+            return parsed, full_response.get("raw", HumanMessage(content="")).content  # type: ignore
 
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
         assistant_response = raw_response_content.split(messages[-1].content)[-1]
-        numbers = re.findall(r'\d+', assistant_response)
-        if numbers:
-            return int(numbers[-1]), raw_response_content
-        
+        assistant_response = self._clean_model_tags(assistant_response)
+
+        # If we tried to get an object but failed... just return the raw content
+        if structure == MessageStructure:
+            return assistant_response, raw_response_content
+
+        elif structure == ActionStructure:
+            numbers = re.findall(r"\d+", assistant_response)
+            if numbers:
+                return int(numbers[-1]), raw_response_content
 
         raise  StructureParsingException(
             f"Failed to parse extracted content into structure: {e}", 
@@ -296,7 +324,7 @@ class ModelFactory:
             if "gemini" not in model_registry: # Cache Gemini model instance as well
                 model_registry["gemini"] = GeminiModel(identifier="gemini_default_instance", model="gemini-2.0-flash-lite")
             return model_registry["gemini"]
-        elif requested_model_name == "llama":
+        elif requested_model_name == "random":
             if "random" not in model_registry:
                 model_registry["random"] = RandomModel()
             return model_registry["random"]
@@ -309,5 +337,6 @@ class ModelFactory:
                 model_registry[hf_repo_id] = LocalModel(
                     hf_repo_id=hf_repo_id,
                     activation_layers=model_config.activation_layers,
+                    max_tokens=model_config.max_tokens,
                 )
             return model_registry[hf_repo_id]

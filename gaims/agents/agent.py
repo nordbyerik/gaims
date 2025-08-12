@@ -11,6 +11,7 @@ class Agent():
     def __init__(self, agent_config: AgentConfig):
         self.id = agent_config.id
         self.persona = agent_config.system_propmt
+        self.name = agent_config.name
 
         self.prompt_config = agent_config.prompt_config
 
@@ -37,7 +38,7 @@ class Agent():
         formatted_messages = formatted_context
 
         llm_repsonse = self.model.communicate(formatted_messages, system_prompt=self.persona)
-        message = Message(self.id, llm_repsonse.receiver, llm_repsonse.message_content)
+        message = Message(self.id, llm_repsonse.receiver, llm_repsonse.message)
         return message
 
     def act(self, context: Dict[str, Any]) -> Action:
@@ -46,5 +47,3 @@ class Agent():
         llm_repsonse = self.model.act(formatted_context, system_prompt=self.persona)
         action = Action(agent_id=self.id,action_id=llm_repsonse.action_id)
         return action
-
-

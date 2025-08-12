@@ -45,16 +45,18 @@ class SystemPromptConfig:
 
 
 class AgentConfig:
-    def __init__(self, 
-                 id: str, 
-                 prompt_config: PromptConfig, 
-                 system_prompt_config: SystemPromptConfig = SystemPromptConfig("neutral"),
-                 model_config: ModelConfig = ModelConfig(model_name="gemini")
-                 ):
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        prompt_config: PromptConfig,
+        system_prompt_config: str = "neutral",
+        model_config: ModelConfig = ModelConfig(model_name="gemini"),
+    ):
+        system_prompt_config = SystemPromptConfig(system_prompt_config)
         self.id = id
+        self.name = name
         self.system_propmt = system_prompt_config.get_system_prompt() # TODO: This is kinda gross
         self.prompt_config = prompt_config
         self.model_config = model_config
-
-
-

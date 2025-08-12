@@ -89,7 +89,7 @@ def main():
     activations = Activations()
     torch.cuda.empty_cache()
 
-    for i in range(10):
+    for i in range(1):
         for variation in ["", "_defection", "_collusion"]:
             for nash_eq_type in ["cooperate", "defect"]:
                 for game_flavor in [
@@ -213,28 +213,6 @@ def classify_activations(
     probe_dataset = probe_dataset
     dataloader = DataLoader(probe_dataset, batch_size=batch_size, shuffle=True)
 
-    input_size = probe_dataset.activations.shape[1]
-    probe = LinearProbe(input_size, output_size).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(probe.parameters(), lr=0.0001)
-
-    # 4. Training loop
-    probe.train()
-
-    num_epochs = 100
-    for epoch in range(num_epochs):
-        for inputs, targets in dataloader:
-            optimizer.zero_grad()
-            outputs = probe(inputs.float().to(device))
-            loss = criterion(outputs, targets.to(device))
-            loss.backward()
-            optimizer.step()
-
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
-
-    probe.eval()
-
-    # 2. Extract and prepare data for Scikit-learn
     X_list = []
     y_list = []
     for batch_X, batch_y in dataloader:
@@ -254,26 +232,6 @@ def classify_activations(
 
     score = model.score(X_test, y_test)
     print(f"Scikit-learn model accuracy: {score}")
-
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for inputs, targets in dataloader:
-            outputs = probe(inputs.float())
-            _, predicted = torch.max(outputs.data, 1)
-            total += targets.size(0)
-            correct += np.sum(
-                [
-                    (i == j)
-                    for i, j in zip(
-                        predicted.cpu().detach().to(torch.float32).numpy(),
-                        targets.cpu().detach().to(torch.float32).numpy(),
-                    )
-                ]
-            ).item()
-
-    accuracy = 100 * correct / total
-    print(f"Accuracy of the linear probe on the dataset: {accuracy:.2f}%")
 
 
 def main_full_sim():

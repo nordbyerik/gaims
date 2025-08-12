@@ -6,7 +6,8 @@ import numpy as np
 from gaims.games.matrix_games.matrix_game import MatrixGameState, MatrixAction
 from gaims.configs.game_config import GameConfig
 from gaims.configs.agent_config import AgentConfig
-from gaims.agents.models import ModelConfig, LocalModel
+from gaims.games.action import Action
+from gaims.agents.models import ModelConfig, LocalModel, StructureParsingException
 from gaims.configs.prompt_config import game_prompts
 from gaims.communication.communication import CommunicationMediumFactory
 
@@ -152,7 +153,10 @@ class GaimsEnv(gym.Env):
 
     def gather_activaton(self, context, agent_id=0):
         agent = self.agents[agent_id]
-        agent_action = agent.act(context)
+        try:
+            agent_action = agent.act(context)
+        except StructureParsingException:
+            agent_action = Action(agent_id=agent.id, action_id=0)
         model_activations = {}
 
         if type(agent.model) == LocalModel:

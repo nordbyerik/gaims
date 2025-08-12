@@ -260,10 +260,10 @@ class LocalModel(Model):
             if numbers:
                 return int(numbers[-1]), raw_response_content
 
-        raise  StructureParsingException(
-            f"Failed to parse extracted content into structure: {e}", 
-            raw_response_content, 
-            structure
+        raise StructureParsingException(
+            f"Failed to parse extracted content into structure",
+            raw_response_content,
+            structure,
         )
 
     def _handle_unstructured_response(self, messages: list[BaseMessage]) -> str:

@@ -127,7 +127,8 @@ Below is a table summarizing the results for classification across
 - Game Flavor: Environmental Dilemma, Moral Dilemma (Hero Vs Villian), Security Arms Increases, Neutral
 - Game Types: Prisoner's Dilemma, Hawk-Dove, Stag Hunt, Bach or Stravinsky
 - Behavior Incentives: Neutral, Collusion, Deception
-Table
+
+
 | Classification      | OpenAI OSS 20B | Qwen 3 0.6B |
 | ------------------- | -------------- | ----------- |
 | Persona             | 100%           | 100%        |
@@ -137,7 +138,7 @@ Table
 
 ## 5. Conclusion and Future Directions
 
-There seems to be some potential for using even simple probes to identify collusion and deception in LLMs. More principled and robust methods for prompt generation and activation extraction would be needed for better results.
+The exceptionally high accuracy warrants further investigation to ensure there's no inadvertant leakage of information. However, there does seem to be some potential for using even simple probes to identify collusion and deception in LLMs. More principled and robust methods for prompt generation and activation extraction would be needed for better results.
 
 Future work could include:
 -   Expanding the library of games to include more complex, multi-stage, and imperfect information scenarios. Some initial ideas include

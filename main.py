@@ -89,9 +89,14 @@ def main():
     activations = Activations()
     torch.cuda.empty_cache()
 
-    for i in range(1):
+    for i in range(10):
         for variation in ["", "_defection", "_collusion"]:
-            for nash_eq_type in ["cooperate", "defect"]:
+            for nash_eq_type in [
+                "battle_of_the_sexes",
+                "chicken",
+                "stag_hunt",
+                "prisoners_dilemma",
+            ]:
                 for game_flavor in [
                     "environmental",
                     "moral_dilemma",

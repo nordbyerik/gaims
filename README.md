@@ -18,8 +18,7 @@ The framework facilitates end-to-end simulations of strategic games. Agents, pow
 
 This allows for the study of emergent strategies and communication protocols in complex social dilemmas.
 
-*   `[Placeholder for Graph: Agent Utility Over Time in a Multi-Round Prisoner's Dilemma]`
-*   `[Placeholder for Visualization: Communication Network Analysis]`
+See the end of this README for an example simulation
 
 ### 1.2. Activation Extraction and Analysis
 
@@ -27,8 +26,8 @@ A key feature of GAIMS is its ability to extract neural activations from local t
 
 The `main.py` script orchestrates this process, iterating through different personas, game framings, and payoff structures to generate a comprehensive set of prompts. For each prompt, the corresponding activations from specified model layers (e.g., `model.layers.16.mlp`) are captured and stored. This dataset can then be used to train linear probes or other classifiers to determine how well internal representations encode high-level concepts like "cooperation," "competitiveness," or the framing of the dilemma.
 
-*   `[Placeholder for Graph: Classification Accuracy of Probes for Different Concepts (Persona, Framing)]`
-*   `[Placeholder for Visualization: UMAP/t-SNE plot of activation clusters, colored by experimental condition (e.g., Persona)]`
+
+
 
 ## 2. Framework Architecture
 
@@ -55,9 +54,11 @@ Prompts are dynamically generated based on a combination of variables, including
 -   **Game Type (Nash Equilibrium)**: The underlying payoff structure can be set to incentivize different outcomes (e.g., `cooperate`, `defect`). This allows for the creation of games like:
     -   **Prisoner's Dilemma**: Both agents are incentivized to defect, leading to a suboptimal mutual outcome.
     -   **Stag Hunt**: Agents must coordinate to achieve the best outcome, but risk a lower payoff if they fail to do so.
+    -   **Hawk-Dove**: Agents are incentivized to defect, but risk a worse outcome if both defect.
+    -   **Bach or Stravinsky**: Agents are incentivized to cooperate and risk a worse outcome if they fail to do so.
 -   **Framing (Flavor)**: The narrative context of the game. The same payoff matrix can be described as a `neutral` scenario which simply states the game instructions, a `business_competition`, a `security_arms` race, etc.
 -   **Persona**: The intrinsic disposition of the agent, set via a system prompt. Examples include `cooperative`, `competitive`, `vengeful`, and `risk_averse`.
--   **Variation**: Modifiers that add complexity to the scenario, such as `collusion` (introducing an incentive for agents to conspire against a third party) or `defection` (hinting at multi-round strategic opportunities).
+-   **Variation**: Modifiers that incentivize certain behaviors, such as `collusion` (introducing an incentive for agents to 'conspire' against a third party) or `defection` (hinting at multi-round strategic opportunities).
 
 ### 3.2. Example Prompt
 
@@ -68,7 +69,7 @@ Geopolitical Standoff Analysis:
 You are Nation A.
 You are a competitive agent who aims to maximize your own utility. You make strategic decisions to outperform others and achieve the best possible outcome for yourself.
 You will play an unknown or very large number of rounds.
-You will be allowed to communicate with the following players: Country B.
+You will not be allowed to communicate with other Players.
 
 Payoff Details (for you, Nation A):
   Policy Decision: Increase Arms
@@ -86,8 +87,18 @@ Which action will you choose? (0 for Increase Arms, 1 for Maintain Status Quo)
 Input your choice (number): 
 ```
 
-## Communication Topology
+## 3.3. Communication Topology
 
+The framework supports communication networks between agents, managed by the `CommunicationMediumFactory` in `gaims/communication/communication.py`. The communication structure is defined in the `GameConfig` via the `communication_type` parameter. This allows for simulations that range from open communication to highly restricted networks.
+
+Supported topologies include:
+
+-   **`None`**: No communication is allowed between agents.
+-   **`fully_connected`**: Every agent can communicate with every other agent in the game.
+-   **`ring`**: Agents are arranged in a circle, and each agent can only communicate with the next agent in the ring.
+-   **`linear`**: Agents are arranged in a line, and each agent can only communicate with the next agent in the line (the last agent cannot communicate).
+-   **`star`**: One central "hub" agent can communicate with all other "peripheral" agents, and peripheral agents can only communicate with the central hub.
+-   **`sparse`**: A random network where each agent has a random number of connections to other agents.
 
 
 ## 4. Usage
@@ -111,7 +122,18 @@ This will iterate through the predefined experimental conditions, gather activat
 
 To run a full simulation example, you can modify `main.py` to call `main_full_sim()`.
 
-*   `[Placeholder for Table: Classification accuracy for predicting persona, framing, and game type from model activations]`
+Below is a table summarizing the results for classification across
+- Personas: Neutral, Competitive, Cooperative
+- Game Flavor: Environmental Dilemma, Moral Dilemma (Hero Vs Villian), Security Arms Increases, Neutral
+- Game Types: Prisoner's Dilemma, Hawk-Dove, Stag Hunt, Bach or Stravinsky
+- Behavior Incentives: Neutral, Collusion, Deception
+Table
+| Classification      | OpenAI OSS 20B | Qwen 3 0.6B |
+| ------------------- | -------------- | ----------- |
+| Persona             | 100%           | 100%        |
+| Game Flavor         | 100%           | 100%        |
+| Game Type           | ~67%           | ~79%        |
+| Behavior Incentives | 100%           | 100%        |
 
 ## 5. Conclusion and Future Directions
 
@@ -126,3 +148,9 @@ Future work could include:
 -   Investigating deception, negotiation tactics, and social norms in larger groups of agents.
 -   Considerable refactoring, decoupling of components, and documentation
 -   Perform more controlled & principled experiments (i.e. randomizing action order, etc.)
+-   
+
+## 6. Example Simulation
+
+Below is a 2 round example game which allows for observations and communcation between two agents. Agent 0 used OpenAI's OSS-20B model as a base Agent 1 used Google's Gemini 2.0 Flash Lite.
+

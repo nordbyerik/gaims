@@ -47,6 +47,7 @@ class GaimsEnv(gym.Env):
                     "agent_id": agent.id,
                     "state": self.game_state.get_state(),
                     "round": self.game_state.round,
+                    "num_rounds": self.game_config.num_rounds,
                     "communication_partners": (
                         self.communication_medium.get_communication_partners(agent.id)
                         if self.communication_medium != None
@@ -64,6 +65,7 @@ class GaimsEnv(gym.Env):
                     "agent_id": agent.id,
                     "state": self.game_state.get_state(),
                     "round": self.game_state.round,
+                    "num_rounds": self.game_config.num_rounds,
                     "agent_observations": agent.observations,
                     "communication_partners": (
                         self.communication_medium.get_communication_partners(agent.id)
@@ -82,6 +84,7 @@ class GaimsEnv(gym.Env):
                 "agent_id": agent.id,
                 "state": self.game_state.get_state(),
                 "round": self.game_state.round,
+                "num_rounds": self.game_config.num_rounds,
                 "agent_observations": agent.observations,
                 "communication_partners": (
                     self.communication_medium.get_communication_partners(agent.id)
@@ -107,6 +110,7 @@ class GaimsEnv(gym.Env):
                 "agent_id": agent.id,
                 "state": self.game_state.get_state(),
                 "round": self.game_state.round,
+                "num_rounds": self.game_config.num_rounds,
                 "agent_observations": agent.observations,
                 "communication_partners": (
                     self.communication_medium.get_communication_partners(agent.id)

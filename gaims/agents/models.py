@@ -78,7 +78,6 @@ class Model(ABC):
             StructureParsingException: If the raw response content cannot be converted to the structure.
             ValueError: If the generation begin token is not found in the model's response.
         """
-        log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
@@ -86,12 +85,11 @@ class Model(ABC):
         messages.append(HumanMessage(content=message))
 
         if structure is not None:
-            response_content = self._handle_structured_response(messages, structure)
+            response_content, raw = self._handle_structured_response(messages, structure)
         else:
-            response_content = self._handle_unstructured_response(messages)
+            response_content = raw = self._handle_unstructured_response(messages)
 
-        log.info(f"{self._identifier} -->: {response_content}")
-        return response_content
+        return response_content, raw
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
@@ -100,37 +98,48 @@ class Model(ABC):
         # Manually parse response
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
+        assistant_response = raw_response_content.split(messages[-1].content)[-1]
+
         # If parsed return
         if parsed := full_response.get("parsed"):
-            return parsed
+            return parsed, assistant_response
 
         try:
-            return structure.model_validate_json(raw_response_content) # type: ignore
+            return structure.model_validate_json(raw_response_content), assistant_response # type: ignore
         except Exception as e:
-            log.error(f"Failed to parse extracted content into structure: {e}")
-            raise  StructureParsingException(
-                f"Failed to parse extracted content into structure: {e}", 
-                raw_response_content, 
-                structure
+            if structure == MessageStructure:
+                return assistant_response, assistant_response
+
+            elif structure == ActionStructure:
+                numbers = re.findall(r"\d+", assistant_response)
+                if numbers:
+                    return int(numbers[-1]), assistant_response
+
+            raise StructureParsingException(
+                f"Failed to parse extracted content into structure",
+                raw_response_content,
+                structure,
             )
 
     def _handle_unstructured_response(self, messages: list[BaseMessage]) -> str:
-        return self.llm.invoke(messages).content
-
+        response_content = self.llm.invoke(messages).content
+        response_content = response_content.split(messages[-1].content)[-1]
+        return response_content
     def observe(self, message: str, **kwargs) -> str: # type: ignore
-        response = self.send_message(message, **kwargs)
+        response, raw = self.send_message(message, **kwargs)
         if not isinstance(response, str):
             return str(response)
-        return response
+        return response, raw
 
     def communicate(self, message: str, **kwargs) -> Message: # type: ignore
-        response = self.send_message(message, structure=MessageStructure, **kwargs)
+        response, raw = self.send_message(message, structure=MessageStructure, **kwargs)
 
         if isinstance(response, MessageStructure):
             reciever = response.receiver if response.receiver else None
             message_content = (
                 response.message_content if response.message_content else None
             )
+            raw = message_content
         elif isinstance(response, str):
             reciever = None
             message_content = response
@@ -138,15 +147,17 @@ class Model(ABC):
             reciever = None
             message_content = str(response)
 
-        return Message(sender=self._identifier, receiver=reciever, message_content=message_content)  # type: ignore
+        split_message_content = message_content.split("FINAL_MESSAGE")[-1]
+
+        return Message(sender=self._identifier, receiver=reciever, message_content=split_message_content), raw  # type: ignore
 
     def act(self, message: str, **kwargs) -> Action: # type: ignore
-        response = self.send_message(message, structure=ActionStructure, **kwargs)
+        response, raw = self.send_message(message, structure=ActionStructure, **kwargs)
         if not isinstance(response, ActionStructure):
             if isinstance(response, int):
-                return Action(agent_id=self._identifier, action_id=response)
+                return Action(agent_id=self._identifier, action_id=response), raw
             raise TypeError(f"Expected ActionStructure, got {type(response)}")
-        return Action(agent_id=self._identifier, action_id=response.action_id) # type: ignore
+        return Action(agent_id=self._identifier, action_id=response.action_id), raw # type: ignore
 
 
 class RandomModel(Model):
@@ -154,7 +165,7 @@ class RandomModel(Model):
         super().__init__(identifier, model)
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
-        return random.randint(0, 1)
+        return random.randint(0, 1), "Here's a random choice"
 
 class GeminiModel(Model):
     def __init__(self, identifier: str | None = None, model: str = "gemini-2.0-flash-lite"): # Updated default model
@@ -209,7 +220,6 @@ class LocalModel(Model):
             raise ValueError(f"No activation hook registered for layer: {layer_name}")
 
     def send_message(self, message: str, structure: BaseModel | None = None, system_prompt: str | None = None) -> str | BaseModel: # type: ignore
-        log.info(f"--> {self._identifier}: {message}")
 
         messages = []
         if system_prompt:
@@ -221,8 +231,7 @@ class LocalModel(Model):
         else:
             response_content = raw = self._handle_unstructured_response(messages)
 
-        log.info(f"{self._identifier} -->: {raw}")
-        return response_content
+        return response_content, raw
 
     def _handle_structured_response(self, messages: list[BaseMessage], structure: BaseModel) -> BaseModel:
         """
@@ -243,22 +252,22 @@ class LocalModel(Model):
         llm_with_structure = self.llm.with_structured_output(structure, include_raw=True) # type: ignore
         full_response = llm_with_structure.invoke(messages)
 
-        if parsed := full_response.get("parsed"):
-            return parsed, full_response.get("raw", HumanMessage(content="")).content  # type: ignore
-
         raw_response_content = full_response.get("raw", HumanMessage(content="")).content # type: ignore
 
         assistant_response = raw_response_content.split(messages[-1].content)[-1]
         assistant_response = self._clean_model_tags(assistant_response)
 
+        if parsed := full_response.get("parsed"):
+            return parsed, assistant_response  # type: ignore
+
         # If we tried to get an object but failed... just return the raw content
         if structure == MessageStructure:
-            return assistant_response, raw_response_content
+            return assistant_response, assistant_response
 
         elif structure == ActionStructure:
             numbers = re.findall(r"\d+", assistant_response)
             if numbers:
-                return int(numbers[-1]), raw_response_content
+                return int(numbers[-1]), assistant_response
 
         raise StructureParsingException(
             f"Failed to parse extracted content into structure",

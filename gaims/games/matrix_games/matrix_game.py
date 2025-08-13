@@ -63,6 +63,7 @@ class MatrixGameState(GameState):
     def generate_random_payoffs(self):
         return torch.randint(-2, 2, (self.game_config.num_actions, self.game_config.num_actions, 2))
 
+
     def generate_random_prisoners_dilemma(self):
         # Cooperate (0), Defect (1)
         # Condition: T > R > P > S
@@ -72,8 +73,10 @@ class MatrixGameState(GameState):
         T = torch.randint(R + 1, R + 10, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[R, R], [S, T]],
-            [[T, S], [P, P]]
+            # Player 1's payoffs
+            [[R, S], [T, P]],
+            # Player 2's payoffs
+            [[R, T], [S, P]]
         ], dtype=torch.float32)
         return payoff_matrix
 
@@ -86,8 +89,10 @@ class MatrixGameState(GameState):
         S = torch.randint(T + 1, T + 5, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[C, C], [T, S]],
-            [[S, T], [P, P]]
+            # Player 1's payoffs
+            [[C, T], [S, P]],
+            # Player 2's payoffs
+            [[C, S], [T, P]]
         ], dtype=torch.float32)
         return payoff_matrix
 
@@ -99,8 +104,10 @@ class MatrixGameState(GameState):
         A = torch.randint(B + 1, B + 5, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[A, B], [C, C]],
-            [[C, C], [B, A]]
+            # Player 1's payoffs
+            [[A, C], [C, B]],
+            # Player 2's payoffs
+            [[B, C], [C, A]]
         ], dtype=torch.float32)
         return payoff_matrix
 
@@ -112,47 +119,55 @@ class MatrixGameState(GameState):
         A = torch.randint(B + 1, B + 5, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[A, A], [C, B]],
-            [[B, C], [B, B]]
+            # Player 1's payoffs
+            [[A, C], [B, B]],
+            # Player 2's payoffs
+            [[A, B], [C, B]]
         ], dtype=torch.float32)
         return payoff_matrix
 
     def generate_random_cooperate(self):
-        p1_defect_c = torch.randint(-5, 5, (1,)).item()
-        p1_defect_d = torch.randint(-5, 5, (1,)).item()
+        # Player 1 payoffs
+        p1_cooperate_c = torch.randint(1, 10, (1,)).item()
+        p1_cooperate_d = torch.randint(1, 10, (1,)).item()
+        p1_defect_c = torch.randint(-5, 0, (1,)).item()
+        p1_defect_d = torch.randint(-5, 0, (1,)).item()
 
-        p1_cooperate_c = torch.randint(p1_defect_c + 1, p1_defect_c + 10, (1,)).item()
-        p1_cooperate_d = torch.randint(p1_defect_d + 1, p1_defect_d + 10, (1,)).item()
-
-        p2_cooperate_c = torch.randint(-5, 5, (1,)).item()
-        p2_defect_c = torch.randint(-5, 5, (1,)).item()
-        p2_cooperate_d = torch.randint(-5, 5, (1,)).item()
-        p2_defect_d = torch.randint(-5, 5, (1,)).item()
+        # Player 2 payoffs
+        p2_cooperate_c = torch.randint(1, 10, (1,)).item()
+        p2_defect_c = torch.randint(1, 10, (1,)).item()
+        p2_cooperate_d = torch.randint(-5, 0, (1,)).item()
+        p2_defect_d = torch.randint(-5, 0, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[p1_cooperate_c, p2_cooperate_c], [p1_cooperate_d, p2_defect_c]],
-            [[p1_defect_c, p2_cooperate_d], [p1_defect_d, p2_defect_d]]
+            # Player 1's payoffs
+            [[p1_cooperate_c, p1_cooperate_d], [p1_defect_c, p1_defect_d]],
+            # Player 2's payoffs
+            [[p2_cooperate_c, p2_defect_c], [p2_cooperate_d, p2_defect_d]]
         ], dtype=torch.float32)
         return payoff_matrix
 
     def generate_random_defect(self):
-        p1_cooperate_c = torch.randint(-5, 5, (1,)).item()
-        p1_cooperate_d = torch.randint(-5, 5, (1,)).item()
+        # Player 1 payoffs
+        p1_defect_c = torch.randint(1, 10, (1,)).item()
+        p1_defect_d = torch.randint(1, 10, (1,)).item()
+        p1_cooperate_c = torch.randint(-5, 0, (1,)).item()
+        p1_cooperate_d = torch.randint(-5, 0, (1,)).item()
 
-        p1_defect_c = torch.randint(p1_cooperate_c + 1, p1_cooperate_c + 10, (1,)).item()
-        p1_defect_d = torch.randint(p1_cooperate_d + 1, p1_cooperate_d + 10, (1,)).item()
-
-        p2_cooperate_c = torch.randint(-5, 5, (1,)).item()
-        p2_defect_c = torch.randint(-5, 5, (1,)).item()
-        p2_cooperate_d = torch.randint(-5, 5, (1,)).item()
-        p2_defect_d = torch.randint(-5, 5, (1,)).item()
+        # Player 2 payoffs
+        p2_defect_c = torch.randint(1, 10, (1,)).item()
+        p2_cooperate_d = torch.randint(1, 10, (1,)).item()
+        p2_cooperate_c = torch.randint(-5, 0, (1,)).item()
+        p2_defect_d = torch.randint(-5, 0, (1,)).item()
 
         payoff_matrix = torch.tensor([
-            [[p1_cooperate_c, p2_cooperate_c], [p1_cooperate_d, p2_defect_c]],
-            [[p1_defect_c, p2_cooperate_d], [p1_defect_d, p2_defect_d]]
+            # Player 1's payoffs
+            [[p1_cooperate_c, p1_cooperate_d], [p1_defect_c, p1_defect_d]],
+            # Player 2's payoffs
+            [[p2_cooperate_c, p2_defect_c], [p2_cooperate_d, p2_defect_d]]
         ], dtype=torch.float32)
         return payoff_matrix
-
+    
     def find_pure_strategy_nash_equilibria(self):
         nash_equilibria = []
         rows, cols, _ = self.payoff_matrix.shape

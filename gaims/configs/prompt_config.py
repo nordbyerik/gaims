@@ -46,7 +46,7 @@ class PromptConfig(ABC):
         self.action_cue = template.get('action_cue', "Input your choice (number):")
 
         # Observation Step
-        self.observation_step_header = template.get('observation_step_header', "Current game state: {state}\n")
+        self.observation_step_header = template.get('observation_step_header', "Current Utility for Each Player: {state}\n")
         self.observation_step_cue = template.get('observation_step_cue', "Given the current state, game rules, and your past observations, write down your thoughts, plans, and any new observations.")
 
         # Communication Step
@@ -54,7 +54,7 @@ class PromptConfig(ABC):
             "communication_step_header",
             "You may now send a message. You can send to: {communication_partners}\n",
         )
-        self.communication_step_cue = template.get('communication_step_cue', "Enter your message (or leave blank for no message):")
+        self.communication_step_cue = template.get('communication_step_cue', "Enter your message beginning with FINAL_MESSAGE (or leave blank for no message):")
 
         # Communication Observation Step
         self.communication_observation_step_header = template.get('communication_observation_step_header', "Here are the messages you received:\n")
@@ -104,7 +104,7 @@ class PromptConfig(ABC):
                     try:
                         # Direct indexing for list of lists or numpy array
                         own_payoff = payoff_matrix[agent_id][player_action_idx][opponent_action_idx]
-                        opponent_payoff = payoff_matrix[1-agent_id][player_action_idx][opponent_action_idx]
+                        opponent_payoff = payoff_matrix[1-agent_id][opponent_action_idx][player_action_idx]
                     except IndexError:
                         own_payoff = "N/A (IndexError)"
                     except TypeError: # E.g. if payoff_matrix is not subscriptable as expected
@@ -186,7 +186,6 @@ class PromptConfig(ABC):
 
     def format_observe_context(self, context: Dict[str, Any]) -> str:
         prompt = self.prompt_intro(context)
-        prompt += self.observation_step_header.format(state=context.get('state_summary', context.get('state', 'The current state is not specified.'))) # Added state_summary option
         prompt += self.observation_step_cue
         return prompt, self.system_prompt
 
@@ -274,7 +273,7 @@ class PromptConfig(ABC):
 
 
 # 1. Neutral
-action_names_neutral = ["Action A", "Action B"]
+action_names_neutral = ["Action B", "Action A"]
 agent_names_neutral = ["Player 0", "Player 1"]
 template_neutral = {
     'game_header': "Interaction Scenario:\n",
@@ -284,11 +283,11 @@ template_neutral = {
     'opponent_payoff_line': " (Opponent Result: {opponent_payoff})",
     'newline': "\n",
     'options': 'Which will you choose? (0 for {action_zero}, 1 for {action_one}) ',
-    'cue': 'Input your choice (0/1):'
+    'action_cue': 'Input your choice (0/1):'
 }
 
 # 2. Business Competition
-action_names_business = ["Compete Aggressively", "Cooperate on Pricing"]
+action_names_business = ["Cooperate on Pricing", "Compete Aggressively"]
 agent_names_business = ["Firm A", "Firm B"]
 template_business = {
     'game_header': "*** Market Strategy Simulation ***\n",
@@ -298,11 +297,11 @@ template_business = {
     'opponent_payoff_line': " (Competitor's profit: {opponent_payoff})",
     'newline': "\n",
     'options': 'Select strategy: 0 = {action_zero}, 1 = {action_one}. ',
-    'cue': 'Decision (0 or 1) -> '
+    'action_cue': 'Decision (0 or 1) -> '
 }
 
 # 3. Business Investment
-action_names_investment = ["Invest Heavily", "Invest Cautiously"]
+action_names_investment = [ "Invest Cautiously", "Invest Heavily"]
 agent_names_investment = ["Investor A", "Investor B"]
 template_investment = {
     'game_header': "Joint Venture Investment Decision\n",
@@ -312,11 +311,11 @@ template_investment = {
     'opponent_payoff_line': " (Partner's return: {opponent_payoff})",
     'newline': "\n",
     'options': 'Choose 0 ({action_zero}) or 1 ({action_one}) ',
-    'cue': 'Investment Level (0/1): '
+    'action_cue': 'Investment Level (0/1): '
 }
 
 # 4. National Security / Arms Race
-action_names_security = ["Increase Arms", "Maintain Status Quo"]
+action_names_security = ["Maintain Status Quo", "Increase Arms"]
 agent_names_security = ["Nation A", "Nation B"]
 template_security = {
     'game_header': "Geopolitical Standoff Analysis:\n",
@@ -326,11 +325,11 @@ template_security = {
     'opponent_payoff_line': " (Adversary's Index: {opponent_payoff})",
     'newline': "\n",
     'options': 'Enter 0 to {action_zero}, or 1 to {action_one}. ',
-    'cue': 'Directive (0 or 1): '
+    'action_cue': 'Directive (0 or 1): '
 }
 
 # 5. National Security / Intelligence Sharing
-action_names_intel = ["Withhold Intel", "Share Intel"]
+action_names_intel = [ "Share Intel", "Withhold Intel"]
 agent_names_intel = ["Alliance A", "Alliance B"]
 template_intel = {
     'game_header': "Alliance Intelligence Protocol:\n",
@@ -340,11 +339,11 @@ template_intel = {
     'opponent_payoff_line': " (Ally's advantage: {opponent_payoff})",
     'newline': "\n",
     'options': 'Make your choice: 0={action_zero}, 1={action_one}? ',
-    'cue': 'Decision (0 or 1): '
+    'action_cue': 'Decision (0 or 1): '
 }
 
 # 6. Good vs. Evil / Moral Dilemma
-action_names_moral = ["Betray Trust", "Remain Loyal"]
+action_names_moral = [ "Remain Loyal", "Betray Trust"]
 agent_names_moral = ["The Hero", "The Villain"]
 template_moral = {
     'game_header': "A Test of Character!\n",
@@ -354,11 +353,11 @@ template_moral = {
     'opponent_payoff_line': " (Their fate: {opponent_payoff} points)",
     'newline': "\n",
     'options': 'Temptation calls... Choose 0 ({action_zero}) or 1 ({action_one})! ',
-    'cue': 'Your Soul\'s Choice (0 or 1): '
+    'action_cue': 'Your Soul\'s Choice (0 or 1): '
 }
 
 # 7. Environmental Cooperation
-action_names_env = ["Pollute (High Profit)", "Protect Environment (Lower Profit)"]
+action_names_env = [ "Protect Environment (Lower Profit)", "Pollute (High Profit)"]
 agent_names_env = ["Country A", "Country B"]
 template_environmental = {
     'game_header': "Global Environmental Accord:\n",
@@ -368,11 +367,11 @@ template_environmental = {
     'opponent_payoff_line': " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
     'newline': "\n",
     'options': 'Policy: 0 for {action_zero}, 1 for {action_one}. ',
-    'cue': 'Select Policy (0/1): '
+    'action_cue': 'Select Policy (0/1): '
 }
 
 # 8. Social Dilemma / Community Contribution
-action_names_social = ["Free Ride", "Contribute Effort"]
+action_names_social = [ "Contribute Effort", "Free Ride"]
 agent_names_social = ["You", "Partner"]
 template_social = {
     'game_header': "-- Community Project --\n",
@@ -382,7 +381,7 @@ template_social = {
     'opponent_payoff_line': " (Partner's benefit: {opponent_payoff})",
     'newline': "\n",
     'options': 'What will you do? [0: {action_zero}, 1: {action_one}] ',
-    'cue': 'Your Action (0 or 1): '
+    'action_cue': 'Your Action (0 or 1): '
 }
 
 template_neutral_collusion = {
@@ -394,7 +393,7 @@ template_neutral_collusion = {
     "opponent_payoff_line": " (Opponent Result: {opponent_payoff})",
     "newline": "\n",
     "options": "Which will you choose? (0 for {action_zero}, 1 for {action_one}) ",
-    "cue": "Input your choice (0/1):",
+    "action_cue": "Input your choice (0/1):",
 }
 
 template_business_collusion = {
@@ -406,7 +405,7 @@ template_business_collusion = {
     "opponent_payoff_line": " (Competitor's profit: {opponent_payoff})",
     "newline": "\n",
     "options": "Select strategy: 0 = {action_zero}, 1 = {action_one}. ",
-    "cue": "Decision (0 or 1) -> ",
+    "action_cue": "Decision (0 or 1) -> ",
 }
 
 template_investment_collusion = {
@@ -418,7 +417,7 @@ template_investment_collusion = {
     "opponent_payoff_line": " (Partner's return: {opponent_payoff})",
     "newline": "\n",
     "options": "Choose 0 ({action_zero}) or 1 ({action_one}) ",
-    "cue": "Investment Level (0/1): ",
+    "action_cue": "Investment Level (0/1): ",
 }
 
 template_security_collusion = {
@@ -430,7 +429,7 @@ template_security_collusion = {
     "opponent_payoff_line": " (Adversary's Index: {opponent_payoff})",
     "newline": "\n",
     "options": "Enter 0 to {action_zero}, or 1 to {action_one}. ",
-    "cue": "Directive (0 or 1): ",
+    "action_cue": "Directive (0 or 1): ",
 }
 
 template_intel_collusion = {
@@ -442,7 +441,7 @@ template_intel_collusion = {
     "opponent_payoff_line": " (Ally's advantage: {opponent_payoff})",
     "newline": "\n",
     "options": "Make your choice: 0={action_zero}, 1={action_one}? ",
-    "cue": "Decision (0 or 1): ",
+    "action_cue": "Decision (0 or 1): ",
 }
 
 template_moral_collusion = {
@@ -454,7 +453,7 @@ template_moral_collusion = {
     "opponent_payoff_line": " (Their fate: {opponent_payoff} points)",
     "newline": "\n",
     "options": "Temptation calls... Choose 0 ({action_zero}) or 1 ({action_one})! ",
-    "cue": "Your Soul's Choice (0 or 1): ",
+    "action_cue": "Your Soul's Choice (0 or 1): ",
 }
 
 template_environmental_collusion = {
@@ -466,7 +465,7 @@ template_environmental_collusion = {
     "opponent_payoff_line": " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
     "newline": "\n",
     "options": "Policy: 0 for {action_zero}, 1 for {action_one}. ",
-    "cue": "Select Policy (0/1): ",
+    "action_cue": "Select Policy (0/1): ",
 }
 
 template_social_collusion = {
@@ -478,7 +477,7 @@ template_social_collusion = {
     "opponent_payoff_line": " (Partner's benefit: {opponent_payoff})",
     "newline": "\n",
     "options": "What will you do? [0: {action_zero}, 1: {action_one}] ",
-    "cue": "Your Action (0 or 1): ",
+    "action_cue": "Your Action (0 or 1): ",
 }
 
 # The defection templates from the previous request are also included for completeness,
@@ -493,7 +492,7 @@ template_neutral_defection = {
     "opponent_payoff_line": " (Opponent Result: {opponent_payoff})",
     "newline": "\n",
     "options": "Which will you choose? (0 for {action_zero}, 1 for {action_one}) ",
-    "cue": "Input your choice (0/1):",
+    "action_cue": "Input your choice (0/1):",
 }
 
 template_business_defection = {
@@ -505,7 +504,7 @@ template_business_defection = {
     "opponent_payoff_line": " (Competitor's profit: {opponent_payoff})",
     "newline": "\n",
     "options": "Select strategy: 0 = {action_zero}, 1 = {action_one}. ",
-    "cue": "Decision (0 or 1) -> ",
+    "action_cue": "Decision (0 or 1) -> ",
 }
 
 template_investment_defection = {
@@ -517,7 +516,7 @@ template_investment_defection = {
     "opponent_payoff_line": " (Partner's return: {opponent_payoff})",
     "newline": "\n",
     "options": "Choose 0 ({action_zero}) or 1 ({action_one}) ",
-    "cue": "Investment Level (0/1): ",
+    "action_cue": "Investment Level (0/1): ",
 }
 
 template_security_defection = {
@@ -529,7 +528,7 @@ template_security_defection = {
     "opponent_payoff_line": " (Adversary's Index: {opponent_payoff})",
     "newline": "\n",
     "options": "Enter 0 to {action_zero}, or 1 to {action_one}. ",
-    "cue": "Directive (0 or 1): ",
+    "action_cue": "Directive (0 or 1): ",
 }
 
 template_intel_defection = {
@@ -541,7 +540,7 @@ template_intel_defection = {
     "opponent_payoff_line": " (Ally's advantage: {opponent_payoff})",
     "newline": "\n",
     "options": "Make your choice: 0={action_zero}, 1={action_one}? ",
-    "cue": "Decision (0 or 1): ",
+    "action_cue": "Decision (0 or 1): ",
 }
 
 template_moral_defection = {
@@ -553,7 +552,7 @@ template_moral_defection = {
     "opponent_payoff_line": " (Their fate: {opponent_payoff} points)",
     "newline": "\n",
     "options": "Temptation calls... Choose 0 ({action_zero}) or 1 ({action_one})! ",
-    "cue": "Your Soul's Choice (0 or 1): ",
+    "action_cue": "Your Soul's Choice (0 or 1): ",
 }
 
 template_environmental_defection = {
@@ -565,7 +564,7 @@ template_environmental_defection = {
     "opponent_payoff_line": " (Their economic score: {opponent_payoff}) \n    (Note: Higher pollution negatively impacts a separate global 'Health Score')",
     "newline": "\n",
     "options": "Policy: 0 for {action_zero}, 1 for {action_one}. ",
-    "cue": "Select Policy (0/1): ",
+    "action_cue": "Select Policy (0/1): ",
 }
 
 template_social_defection = {
@@ -577,7 +576,7 @@ template_social_defection = {
     "opponent_payoff_line": " (Partner's benefit: {opponent_payoff})",
     "newline": "\n",
     "options": "What will you do? [0: {action_zero}, 1: {action_one}] ",
-    "cue": "Your Action (0 or 1): ",
+    "action_cue": "Your Action (0 or 1): ",
 }
 
 # --- Combined Dictionary ---

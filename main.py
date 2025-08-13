@@ -131,9 +131,9 @@ def main():
                                 prompt_config=framing,
                                 system_prompt_config=system_prompt_config_0,
                                 model_config=ModelConfig(
-                                    model_name="Qwen/Qwen2.5-0.5B-Instruct",
+                                    model_name="unsloth/gpt-oss-20b",
                                     activation_layers=[
-                                        "model.layers.16.mlp",
+                                        "model.layers.23.mlp",
                                     ],
                                     max_tokens=1,
                                 ),
@@ -179,10 +179,10 @@ def main():
 
                         env.close()
 
-    classify_activations(activations, "model.layers.16.mlp", "persona")
-    classify_activations(activations, "model.layers.16.mlp", "variation")
-    classify_activations(activations, "model.layers.16.mlp", "nash_eq_type")
-    classify_activations(activations, "model.layers.16.mlp", "framing")
+    classify_activations(activations, "model.layers.23.mlp", "persona")
+    classify_activations(activations, "model.layers.23.mlp", "variation")
+    classify_activations(activations, "model.layers.23.mlp", "nash_eq_type")
+    classify_activations(activations, "model.layers.23.mlp", "framing")
 
 
 class ProbeDataset(Dataset):
@@ -204,7 +204,7 @@ def classify_activations(
 ):
     activations_copy = deepcopy(activations)
     activations_copy.activations = [
-        activation[layer_name][0][:, -1, :].squeeze()
+        activation[layer_name][0][0][:, -1, :].squeeze()
         for activation in activations.activations
     ]
     activations_copy.activations = torch.stack(activations_copy.activations)
@@ -240,15 +240,14 @@ def classify_activations(
 
 
 def main_full_sim():
-    activations = Activations()
     torch.cuda.empty_cache()
 
-    for i in range(5):
-        for nash_eq_type in ["cooperate", "defect"]:
-            for framing in ["environmental", "moral_dilemma", "neutral"]:
+    for i in range(1):
+        for nash_eq_type in ["defect"]:
+            for framing in ["security_arms"]:
 
                 game_config = GameConfig(
-                    num_rounds=1,
+                    num_rounds=3,
                     num_actions=2,
                     num_agents=2,
                     game_type="matrix_game",
@@ -268,7 +267,7 @@ def main_full_sim():
                         prompt_config=framing,
                         system_prompt_config=system_prompt_config_0,
                         model_config=ModelConfig(
-                            model_name="Qwen/Qwen2.5-0.5B-Instruct",
+                            model_name="unsloth/gpt-oss-20b",
                             activation_layers=[
                                 "model.layers.16.mlp",
                             ],
@@ -301,20 +300,11 @@ def main_full_sim():
                     action = env.action_space.sample()  # Sample a random action
                     obs, reward, done, info = env.step(action)
 
-                    activation = env.get_activations()
-
-                    activations.append(
-                        activation,
-                        nash_eq_type == "cooperate",
-                        nash_eq_type == "defect",
-                        False,
-                        False,
-                    )
 
                 env.close()
 
-    torch.save(activations, "activations_data.pt")
 
 
 if __name__ == "__main__":
-    main()
+   # main()
+    main_full_sim()

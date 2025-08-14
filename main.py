@@ -300,9 +300,10 @@ def main_full_sim():
                     action = env.action_space.sample()  # Sample a random action
                     obs, reward, done, info = env.step(action)
 
-
+                logged_events = env.logged_events
+                with open("logged.csv", "w") as f:
+                    f.write(logged_events)
                 env.close()
-
 
 
 if __name__ == "__main__":

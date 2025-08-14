@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 class GaimsEnv(gym.Env):
     metadata = {'render.modes': ['human']}
-    logged_events = []
+    
 
     def __init__(self, game_config, agent_configs, game_state, agents):
         super(GaimsEnv, self).__init__()
@@ -25,6 +25,8 @@ class GaimsEnv(gym.Env):
         self.agent_configs = agent_configs
         self.game_state = game_state
         self.agents = agents
+
+        self.logged_events = []
 
         self.communication_medium = None
         if game_config.communication_type != None:
@@ -59,7 +61,7 @@ class GaimsEnv(gym.Env):
                 }
                 logging_info = agent.observe(context)
                 logging_info["round_num"] = self.game_state.round
-                logged_events.append(logging_info)
+                self.logged_events.append(logging_info)
 
         # Communicate
         if self.communication_medium != None:
@@ -79,7 +81,7 @@ class GaimsEnv(gym.Env):
                 }
                 message, logging_info = agent.communicate(context)
                 logging_info["round_num"] = self.game_state.round
-                logged_events.append(logging_info)
+                self.logged_events.append(logging_info)
 
                 self.communication_medium.send_message(
                     agent.id, message.receiver, message.message
@@ -108,7 +110,7 @@ class GaimsEnv(gym.Env):
             }
             logging_info = agent.observe_communication(context)
             logging_info["round_num"] = self.game_state.round
-            logged_events.append(logging_info)
+            self.logged_events.append(logging_info)
 
         # All agents take an action
         actions = []
@@ -142,7 +144,7 @@ class GaimsEnv(gym.Env):
 
             logging_info["round_num"] = self.game_state.round
             logging_info["agent_action"] = matrix_action
-            logged_events.append(logging_info)
+            self.logged_events.append(logging_info)
 
             log.info(f"Agent {agent.id} took action {agent_action.action_id}")
 

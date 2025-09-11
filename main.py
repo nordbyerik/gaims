@@ -23,6 +23,8 @@ from gaims.games.resource_sharing.resource_sharing_game import ResourceSharingGa
 from gaims.games.negotiation.negotiation_game import NegotiationGameState
 from gaims.gym_env import GaimsEnv
 
+import pandas as pd
+
 import logging
 import time
 import numpy as np
@@ -143,7 +145,13 @@ def main():
                                 name=framing.agent_names[1],
                                 prompt_config=framing,
                                 system_prompt_config=system_prompt_config_1,
-                                model_config=ModelConfig(model_name="gemini"),
+                                model_config=ModelConfig(
+                                    model_name="unsloth/gpt-oss-20b",
+                                    activation_layers=[
+                                        "model.layers.23.mlp",
+                                    ],
+                                    max_tokens=1,
+                                ),
                             ),
                         ]
 
@@ -277,8 +285,13 @@ def main_full_sim():
                         id=1,
                         name=framing.agent_names[1],
                         prompt_config=framing,
-                        system_prompt_config=system_prompt_config_1,
-                        model_config=ModelConfig(model_name="gemini"),
+                        system_prompt_config=system_prompt_config_0,
+                        model_config=ModelConfig(
+                            model_name="unsloth/gpt-oss-20b",
+                            activation_layers=[
+                                "model.layers.16.mlp",
+                            ],
+                        ),
                     ),
                 ]
 
@@ -301,8 +314,8 @@ def main_full_sim():
                     obs, reward, done, info = env.step(action)
 
                 logged_events = env.logged_events
-                with open("logged.csv", "w") as f:
-                    f.write(logged_events)
+                logged_events = pd.DataFrame(logged_events)
+                logged_events = logged_events.to_csv("logged.csv", index=False)
                 env.close()
 
 

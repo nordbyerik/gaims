@@ -37,7 +37,9 @@ class Agent():
             "agent_model": {self.model._identifier},
             "step": "communicate",
             "message": {formatted_context},
-            "response": {llm_repsonse_raw},
+            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
+            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
+
         }
 
     def observe_communication(self, context: Dict[str, Any]) -> None:
@@ -50,7 +52,8 @@ class Agent():
             "agent_model": {self.model._identifier},
             "step": "communicate",
             "message": {formatted_context},
-            "response": {llm_repsonse_raw},
+            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
+            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
         }
 
     def communicate(self, context: Dict[str, Any]) -> Message:
@@ -65,7 +68,8 @@ class Agent():
             "agent_model": {self.model._identifier},
             "step": "communicate",
             "message": {formatted_messages},
-            "response": {llm_repsonse_raw},
+            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
+            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
         }
 
     def act(self, context: Dict[str, Any]) -> Action:
@@ -78,5 +82,6 @@ class Agent():
             "agent_model": {self.model._identifier},
             "step": "communicate",
             "message": {formatted_context},
-            "response": {llm_repsonse_raw},
+            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
+            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
         }

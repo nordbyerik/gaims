@@ -247,8 +247,6 @@ def main():
 
                         env.close()
 
-    pkl.dump(activations, open("activations.pkl", "wb"))
-
     classify_activations(activations, "model.layers.23.mlp", "persona")
     classify_activations(activations, "model.layers.23.mlp", "variation")
     classify_activations(activations, "model.layers.23.mlp", "nash_eq_type")

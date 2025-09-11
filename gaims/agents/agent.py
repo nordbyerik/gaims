@@ -36,7 +36,7 @@ class Agent():
         return {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
-            "step": "communicate",
+            "step": "observe",
             "message": {formatted_context},
             "response": {llm_repsonse_raw},
         }
@@ -51,7 +51,7 @@ class Agent():
         return {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
-            "step": "communicate",
+            "step": "observe_communication",
             "message": {formatted_context},
             "response": {llm_repsonse_raw},
         }
@@ -82,7 +82,7 @@ class Agent():
         return action, {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
-            "step": "communicate",
+            "step": "act",
             "message": {formatted_context},
             "response": {llm_repsonse_raw},
         }

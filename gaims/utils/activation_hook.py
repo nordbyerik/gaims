@@ -1,11 +1,12 @@
 
 class ActivationHook:
-    """Hook to extract activations from a specific layer of a transformer model."""
-    def __init__(self, model, layer_name, transformation_function=None):
+    """Hook to extract activations or attention weights from a specific layer of a transformer model."""
+    def __init__(self, model, layer_name, transformation_function=None, capture_attention_weights=False):
         self.activations = None
         self.layer_name = layer_name
         self.transformation_function = transformation_function if transformation_function is not None else lambda x: x
         self._handle = None
+        self.capture_attention_weights = capture_attention_weights
 
         # Register forward hook
         module = self.get_layer(model, layer_name)
@@ -33,6 +34,7 @@ class ActivationHook:
                 return layer.self_attn
         elif 'residual' in layer_name:
             return layer
+            
     def set_transformation_function(self, transformation_function):
         self.transformation_function = transformation_function
 
@@ -41,10 +43,17 @@ class ActivationHook:
         return self.transformation_function(output)
 
     def hook_attention(self, module, input, output):
-        self.activations = output[0].detach()
-        output_updated = self.transformation_function(output[0])
-        output = (output_updated,) + output[1:]
-        return output
+        if self.capture_attention_weights:
+            # We want the attention weights, which are in output[1]
+            self.activations = output[1].detach()
+            # We don't transform anything, just pass through
+            return output
+        else:
+            # Original behavior: capture hidden states from output[0]
+            self.activations = output[0].detach()
+            output_updated = self.transformation_function(output[0])
+            output = (output_updated,) + output[1:]
+            return output
 
     def print_activations(self):
         print(self.activations)
@@ -68,6 +77,7 @@ class ActivationHook:
 
     def __enter__(self):
         return self
+        
     def __exit__(self):
         self.clear()
         self.remove()

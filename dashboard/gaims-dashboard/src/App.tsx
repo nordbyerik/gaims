@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -17,13 +17,35 @@ import {
   LineChart as LineChartIcon,
 } from "lucide-react";
 
+interface Action {
+  player: number;
+  action: number;
+}
+
+interface Interaction {
+  player: string;
+  role: string;
+  thoughts: string | null;
+  receivedMessage: string | null;
+}
+
+interface Round {
+  round: number;
+  playerUtility: number | null;
+  payoffMatrix: string | null;
+  interactions: Interaction[];
+  actions: Action[];
+  reward: number[] | null;
+  nashEquilibria: string[] | null;
+}
+
 // This is the core parsing function adapted from your original JS code.
 // It uses regular expressions to find and extract relevant information from the log string.
-const parseGameLogs = (logData) => {
-  const rounds = [];
+const parseGameLogs = (logData: string): Round[] => {
+  const rounds: Round[] = [];
   const lines = logData.split("\n");
-  let currentRoundData = null;
-  let currentInteraction = null;
+  let currentRoundData: Round | null = null;
+  let currentInteraction: Interaction | null = null;
 
   const roundRegex = /^INFO:gaims.gym_env:Round: (\d+)/;
   const utilityRegex = /^INFO:gaims.gym_env:Player Utility: ([\d.\-]+)/;
@@ -47,23 +69,27 @@ const parseGameLogs = (logData) => {
           currentRoundData.interactions.push(currentInteraction);
         rounds.push(currentRoundData);
       }
-      currentRoundData = {
-        round: parseInt(line.match(roundRegex)[1]),
-        playerUtility: null,
-        payoffMatrix: null,
-        interactions: [],
-        actions: [],
-        reward: null,
-        nashEquilibria: null,
-      };
+      const match = line.match(roundRegex);
+      if (match) {
+        currentRoundData = {
+          round: parseInt(match[1]),
+          playerUtility: null,
+          payoffMatrix: null,
+          interactions: [],
+          actions: [],
+          reward: null,
+          nashEquilibria: null,
+        };
+      }
       currentInteraction = null;
     }
 
     if (currentRoundData) {
       if (utilityRegex.test(line)) {
-        currentRoundData.playerUtility = parseFloat(
-          line.match(utilityRegex)[1]
-        );
+        const match = line.match(utilityRegex);
+        if (match) {
+          currentRoundData.playerUtility = parseFloat(match[1]);
+        }
       }
 
       const remainingLog = lines.slice(i).join("\n");
@@ -77,12 +103,14 @@ const parseGameLogs = (logData) => {
           currentRoundData.interactions.push(currentInteraction);
         }
         const match = line.match(interactionStartRegex);
-        currentInteraction = {
-          player: match[1],
-          role: match[2],
-          thoughts: null,
-          receivedMessage: null,
-        };
+        if (match) {
+          currentInteraction = {
+            player: match[1],
+            role: match[2],
+            thoughts: null,
+            receivedMessage: null,
+          };
+        }
       }
 
       if (currentInteraction) {
@@ -99,20 +127,28 @@ const parseGameLogs = (logData) => {
 
       if (actionRegex.test(line)) {
         const match = line.match(actionRegex);
-        currentRoundData.actions.push({
-          player: parseInt(match[1]),
-          action: parseInt(match[2]),
-        });
+        if (match) {
+          currentRoundData.actions.push({
+            player: parseInt(match[1]),
+            action: parseInt(match[2]),
+          });
+        }
       } else if (rewardRegex.test(line)) {
-        const rewardString = line.match(rewardRegex)[1];
-        currentRoundData.reward = rewardString
-          .split(", ")
-          .map((s) => parseFloat(s));
+        const match = line.match(rewardRegex);
+        if (match) {
+          const rewardString = match[1];
+          currentRoundData.reward = rewardString
+            .split(", ")
+            .map((s) => parseFloat(s));
+        }
       } else if (nashRegex.test(line)) {
-        const nashString = line.match(nashRegex)[1];
-        currentRoundData.nashEquilibria = nashString
-          .split("), (")
-          .map((s) => `(${s.replace(/[()]/g, "")})`);
+        const match = line.match(nashRegex);
+        if (match) {
+          const nashString = match[1];
+          currentRoundData.nashEquilibria = nashString
+            .split("), (")
+            .map((s) => `(${s.replace(/[()]/g, "")})`);
+        }
       }
     }
   }
@@ -128,43 +164,46 @@ const parseGameLogs = (logData) => {
 
 // Dummy log content to pre-fill the textarea
 // Open log
-const dummyLogContent = 
+const dummyLogContent = ""; 
 
 // Minimal placeholder components for shadcn/ui to make the app runnable.
 // In a real project, these would be imported from a UI library.
-const Card = ({ className, ...props }) => (
+const Card = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <div
     className={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`}
     {...props}
   />
 );
-const CardHeader = ({ className, ...props }) => (
+const CardHeader = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props} />
 );
-const CardTitle = ({ className, ...props }) => (
+const CardTitle = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <h3
     className={`text-2xl font-semibold leading-none tracking-tight ${className}`}
     {...props}
   />
 );
-const CardContent = ({ className, ...props }) => (
+const CardContent = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <div className={`p-6 pt-0 ${className}`} {...props} />
 );
-const Button = ({ className, ...props }) => (
+const Button = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <button
     className={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 ${className}`}
     {...props}
   />
 );
-const Textarea = ({ className, ...props }) => (
+const Textarea = ({ className, ...props }: { className?: string; [key: string]: any }) => (
   <textarea
     className={`flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     {...props}
   />
 );
 
-const CollapsibleContext = React.createContext(false);
-const Collapsible = ({ className, children, ...props }) => {
+const CollapsibleContext = React.createContext<{
+  isOpen: boolean;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}>({ isOpen: false, setIsOpen: () => {} });
+const Collapsible = ({ className, children, ...props }: { className?: string; children: React.ReactNode; [key: string]: any }) => {
   const [isOpen, setIsOpen] = useState(false);
   const value = { isOpen, setIsOpen };
   return (
@@ -175,7 +214,7 @@ const Collapsible = ({ className, children, ...props }) => {
     </CollapsibleContext.Provider>
   );
 };
-const CollapsibleTrigger = ({ className, children, ...props }) => {
+const CollapsibleTrigger = ({ className, children, ...props }: { className?: string; children: React.ReactNode; [key: string]: any }) => {
   const { isOpen, setIsOpen } = React.useContext(CollapsibleContext);
   return (
     <button
@@ -192,7 +231,7 @@ const CollapsibleTrigger = ({ className, children, ...props }) => {
     </button>
   );
 };
-const CollapsibleContent = ({ className, children, ...props }) => {
+const CollapsibleContent = ({ className, children, ...props }: { className?: string; children: React.ReactNode; [key: string]: any }) => {
   const { isOpen } = React.useContext(CollapsibleContext);
   return isOpen ? (
     <div className={`${className}`} {...props}>
@@ -203,12 +242,12 @@ const CollapsibleContent = ({ className, children, ...props }) => {
 
 // Main React App component
 export default function App() {
-  const [logData, setLogData] = useState(DUMMY_LOG_CONTENT);
-  const [parsedRounds, setParsedRounds] = useState([]);
+  const [logData, setLogData] = useState(dummyLogContent);
+  const [parsedRounds, setParsedRounds] = useState<Round[]>([]);
 
   // Parse the dummy data on initial load
   useEffect(() => {
-    setParsedRounds(parseGameLogs(DUMMY_LOG_CONTENT));
+    setParsedRounds(parseGameLogs(dummyLogContent));
   }, []);
 
   const handleParse = () => {
@@ -217,7 +256,7 @@ export default function App() {
 
   const getChartData = () => {
     return parsedRounds.map((round) => {
-      const data = {
+      const data: { name: string; player0?: number; player1?: number } = {
         name: `Round ${round.round}`,
       };
       if (round.reward && round.reward.length > 0) {
@@ -254,7 +293,7 @@ export default function App() {
               className="min-h-[200px] font-mono text-sm resize-y"
               placeholder="Paste your game log data here..."
               value={logData}
-              onChange={(e) => setLogData(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLogData(e.target.value)}
             />
             <Button
               onClick={handleParse}

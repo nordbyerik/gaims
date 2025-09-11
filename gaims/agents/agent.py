@@ -36,10 +36,8 @@ class Agent():
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_context},
-            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
-            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
-
+            "message": {formatted_messages},
+            "response": {llm_response_raw},
         }
 
     def observe_communication(self, context: Dict[str, Any]) -> None:
@@ -51,9 +49,8 @@ class Agent():
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_context},
-            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
-            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
+            "message": {formatted_messages},
+            "response": {llm_response_raw},
         }
 
     def communicate(self, context: Dict[str, Any]) -> Message:
@@ -68,12 +65,12 @@ class Agent():
             "agent_model": {self.model._identifier},
             "step": "communicate",
             "message": {formatted_messages},
-            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
-            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
+            "response": {llm_response_raw},
         }
 
     def act(self, context: Dict[str, Any]) -> Action:
         formatted_context, system_prompt = self.prompt_config.format_action_context(context)
+        formatted_context = formatted_context
         llm_repsonse, llm_repsonse_raw = self.model.act(formatted_context, system_prompt=self.persona)
         log.info(f"**STEP** ==> LOGGED_AGENT: {self.name}, LOGGED_AGENT_MODEL: {self.model._identifier}, LOGGED_ACTION: ACT, LOGGED_MESSAGE: {formatted_context}, LOGGED_RESPONSE: {llm_repsonse_raw}")
         action = Action(agent_id=self.id,action_id=llm_repsonse.action_id)
@@ -81,7 +78,6 @@ class Agent():
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_context},
-            "response": {llm_repsonse_raw.split("assistantfinal")[0].replace("assistantanalysis", "")},
-            "thoughts": {llm_repsonse_raw.split("assistantfinal")[-1]},
+            "message": {formatted_messages},
+            "response": {llm_response_raw},
         }

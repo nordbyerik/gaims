@@ -384,4 +384,4 @@ def main_full_sim():
 
 
 if __name__ == "__main__":
-    main()
+    main_full_sim()

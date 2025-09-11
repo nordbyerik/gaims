@@ -21,6 +21,7 @@ from gaims.games.matrix_games.matrix_game import MatrixGameState
 from gaims.games.resource_sharing.resource_sharing_game import ResourceSharingGameState
 from gaims.games.negotiation.negotiation_game import NegotiationGameState
 from gaims.gym_env import GaimsEnv
+import pandas as pd
 import logging
 
 logging.basicConfig(filename="example.log", encoding="utf-8", level=logging.INFO)
@@ -98,71 +99,256 @@ class LinearProbe(nn.Module):
 
 
 def main():
+
+    context = {
+        "agent_id": 0,
+        "state": {
+            "player_utility": 0,
+            "payoff_matrix": [[[9.0, 0.0], [12.0, -4.0]], [[1.0, -1.0], [4.0, 3.0]]],
+        },
+        "round": 0,
+        "agent_observations": [],
+        "communication_partners": ["Country B"],
+        "agent_persona": "You are a competitive agent who aims to maximize your own utility. You make strategic decisions to outperform others and achieve the best possible outcome for yourself.",
+    }
+
+    activations = Activations()
     torch.cuda.empty_cache()
 
-    # Let's run for one specific setting to get a clear attention map
-    variation = "_defection"
-    nash_eq_type = "prisoners_dilemma"
-    game_flavor = "security_arms"
-    persona = "competitive"
-    layer_to_viz = "model.layers.23.self_attn"
+    for i in range(10):
+        for variation in ["", "_defection", "_collusion"]:
+            for nash_eq_type in [
+                "battle_of_the_sexes",
+                "chicken",
+                "stag_hunt",
+                "prisoners_dilemma",
+            ]:
+                for game_flavor in [
+                    "environmental",
+                    "moral_dilemma",
+                    "neutral",
+                    "security_arms",
+                ]:
+                    for persona in [
+                        "competitive",
+                        "cooperative",
+                        "neutral",
+                    ]:
 
-    framing = game_flavor + variation
+                        framing = game_flavor + variation
 
-    game_config = GameConfig(
-        num_rounds=1,
-        num_actions=2,
-        num_agents=2,
-        game_type="matrix_game",
-        observe=False,
-        communication_type=None,
-    )
-    framing_prompt = game_prompts.get(framing)
-    system_prompt_config_0 = persona
+                        game_config = GameConfig(
+                            num_rounds=1,
+                            num_actions=2,
+                            num_agents=2,
+                            game_type="matrix_game",
+                            observe=False,
+                            communication_type=None,
+                        )
+                        framing = game_prompts.get(framing)
+                        nash_eq_type = nash_eq_type
+                        system_prompt_config_0 = persona  # Personas
+                        system_prompt_config_1 = persona
 
-    agent_configs = [
-        AgentConfig(
-            id=0,
-            name=framing_prompt.agent_names[0],
-            prompt_config=framing_prompt,
-            system_prompt_config=system_prompt_config_0,
-            model_config=ModelConfig(
-                model_name="unsloth/gpt-oss-20b",
-                activation_layers=[layer_to_viz],
-                max_tokens=1,
-                capture_attention_weights=True, # Important!
-            ),
-        ),
-        AgentConfig(
-            id=1,
-            name=framing_prompt.agent_names[1],
-            prompt_config=framing_prompt,
-            system_prompt_config=persona,
-            model_config=ModelConfig(model_name="gemini"),
-        ),
-    ]
+                        agent_configs = [
+                            AgentConfig(
+                                id=0,
+                                name=framing.agent_names[0],
+                                prompt_config=framing,
+                                system_prompt_config=system_prompt_config_0,
+                                model_config=ModelConfig(
+                                    model_name="unsloth/gpt-oss-20b",
+                                    activation_layers=[
+                                        "model.layers.23.mlp",
+                                    ],
+                                    max_tokens=1,
+                                ),
+                            ),
+                            AgentConfig(
+                                id=1,
+                                name=framing.agent_names[1],
+                                prompt_config=framing,
+                                system_prompt_config=system_prompt_config_1,
+                                model_config=ModelConfig(
+                                    model_name="unsloth/gpt-oss-20b",
+                                    activation_layers=[
+                                        "model.layers.23.mlp",
+                                    ],
+                                    max_tokens=1,
+                                ),
+                            ),
+                        ]
 
-    agents = [Agent(config) for config in agent_configs]
-    game_state = MatrixGameState(game_config, game_type=nash_eq_type)
-    env = GaimsEnv(game_config, agent_configs, game_state, agents)
-    obs, info = env.reset()
+                        agents = [Agent(config) for config in agent_configs]
 
-    # We need the raw prompt to get the tokens for visualization
-    raw_prompt = agents[0].format_prompt(obs[0])
-    
-    # This will run the model and trigger the hooks to capture attention
-    _, _ = agents[0].model.send_message(raw_prompt)
+                        if game_config.game_type == "matrix_game":
+                            game_state = MatrixGameState(
+                                game_config, game_type=nash_eq_type
+                            )
+                        elif game_config.game_type == "resource_sharing":
+                            game_state = ResourceSharingGameState(game_config)
+                        elif game_config.game_type == "negotiation":
+                            game_state = NegotiationGameState(game_config)
 
-    # Retrieve activations (which are now attention weights)
-    attention_weights = agents[0].model.get_activations(layer_to_viz)
+                        env = GaimsEnv(game_config, agent_configs, game_state, agents)
+                        obs, info = env.reset()
+                        raw_prompt = agents[0].format_prompt(obs[0])
 
-    # Get tokens from the tokenizer
-    tokenizer = agents[0].model.tokenizer
-    tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(raw_prompt))
+                        context_copy = context.copy()
+                        context_copy["state"][
+                            "payoff_matrix"
+                        ] = env.game_state.payoff_matrix
+                        context_copy["agent_persona"] = agents[0].persona
 
-    visualize_attention(attention_weights, tokens, filename=f"attention_{persona}_{game_flavor}.png")
+                        model_activations, matrix_action = env.gather_activaton(context)
+                        
+                        tokenizer = agents[0].model.tokenizer
+                        tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(raw_prompt))
+                        visualize_attention(attention_weights, tokens, filename=f"attention_{persona}_{game_flavor}.png")
+
+                        activations.append(
+                            model_activations,
+                            variation,
+                            nash_eq_type,
+                            game_flavor,
+                            persona,
+                        )
+
+                        env.close()
+
+    classify_activations(activations, "model.layers.23.mlp", "persona")
+    classify_activations(activations, "model.layers.23.mlp", "variation")
+    classify_activations(activations, "model.layers.23.mlp", "nash_eq_type")
+    classify_activations(activations, "model.layers.23.mlp", "framing")
+
+    visualize_attention(activations, tokens, filename=f"attention_{persona}_{game_flavor}.png")
 
     env.close()
+class ProbeDataset(Dataset):
+    def __init__(
+        self, activations_data: torch.Tensor, labels: List, label_to_idx: Dict
+    ):
+        self.activations = activations_data
+        self.labels = torch.tensor([label_to_idx[l] for l in labels], dtype=torch.long)
+
+    def __len__(self):
+        return len(self.activations)
+
+    def __getitem__(self, idx):
+        return self.activations[idx], self.labels[idx]
+
+
+def classify_activations(
+    activations, layer_name, classification_type, batch_size=32, device="mps"
+):
+    activations_copy = deepcopy(activations)
+    activations_copy.activations = [
+        activation[layer_name][0][0][:, -1, :].squeeze()
+        for activation in activations.activations
+    ]
+    activations_copy.activations = torch.stack(activations_copy.activations)
+
+    labels = getattr(activations_copy, classification_type)
+    label_set = sorted(list(set(labels)))
+    label_to_idx = {label: idx for idx, label in enumerate(label_set)}
+    output_size = len(label_set)
+
+    probe_dataset = ProbeDataset(activations_copy.activations, labels, label_to_idx)
+    probe_dataset = probe_dataset
+    dataloader = DataLoader(probe_dataset, batch_size=batch_size, shuffle=True)
+
+    X_list = []
+    y_list = []
+    for batch_X, batch_y in dataloader:
+        X_list.append(batch_X.cpu().detach().to(torch.float32).numpy())
+        y_list.append(batch_y.cpu().detach().to(torch.float32).numpy())
+
+    X_numpy = np.concatenate(X_list)
+    y_numpy = np.concatenate(y_list)
+
+    # 3. Use the NumPy data with Scikit-learn
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_numpy, y_numpy, test_size=0.2, random_state=42
+    )
+
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X_train, y_train)
+
+    score = model.score(X_test, y_test)
+    print(f"Scikit-learn model accuracy: {score}")
+
+
+def main_full_sim():
+    torch.cuda.empty_cache()
+
+    for i in range(1):
+        for nash_eq_type in ["defect"]:
+            for framing in ["security_arms"]:
+
+                game_config = GameConfig(
+                    num_rounds=3,
+                    num_actions=2,
+                    num_agents=2,
+                    game_type="matrix_game",
+                    observe=True,
+                    communication_type="fully_connected",
+                )
+
+                framing = game_prompts.get(framing)
+                nash_eq_type = nash_eq_type
+                system_prompt_config_0 = "competitive"  # Personas
+                system_prompt_config_1 = "cooperative"
+
+                agent_configs = [
+                    AgentConfig(
+                        id=0,
+                        name=framing.agent_names[0],
+                        prompt_config=framing,
+                        system_prompt_config=system_prompt_config_0,
+                        model_config=ModelConfig(
+                            model_name="unsloth/gpt-oss-20b",
+                            activation_layers=[
+                                "model.layers.16.mlp",
+                            ],
+                        ),
+                    ),
+                    AgentConfig(
+                        id=1,
+                        name=framing.agent_names[1],
+                        prompt_config=framing,
+                        system_prompt_config=system_prompt_config_0,
+                        model_config=ModelConfig(
+                            model_name="unsloth/gpt-oss-20b",
+                            activation_layers=[
+                                "model.layers.16.mlp",
+                            ],
+                        ),
+                    ),
+                ]
+
+                agents = [Agent(config) for config in agent_configs]
+
+                if game_config.game_type == "matrix_game":
+                    game_state = MatrixGameState(game_config, game_type=nash_eq_type)
+                elif game_config.game_type == "resource_sharing":
+                    game_state = ResourceSharingGameState(game_config)
+                elif game_config.game_type == "negotiation":
+                    game_state = NegotiationGameState(game_config)
+
+                env = GaimsEnv(game_config, agent_configs, game_state, agents)
+
+                obs, info = env.reset()
+                done = False
+                while not done:
+                    env.render()
+                    action = env.action_space.sample()  # Sample a random action
+                    obs, reward, done, info = env.step(action)
+
+                logged_events = env.logged_events
+                logged_events = pd.DataFrame(logged_events)
+                logged_events = logged_events.to_csv("logged.csv", index=False)
+                env.close()
+
 
 
 if __name__ == "__main__":

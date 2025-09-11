@@ -17,4 +17,5 @@ dependencies = [
     "transformers>=4.56.1",
     "matplotlib>=3.9.0",
     "pandas>=2.3.2",
+    "dotenv>=0.9.9",
 ]

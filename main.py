@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 load_dotenv()
 
 from typing import Any, List, Dict, Tuple
-
+import pickle as pkl
 from gaims.configs.game_config import GameConfig
 from gaims.configs.agent_config import AgentConfig
 from gaims.agents.models import ModelConfig
@@ -29,6 +29,38 @@ logger = logging.getLogger(__name__)
 
 from gaims.configs.prompt_config import game_prompts
 
+def visualize_attention_by_group(activations, tokens, group_attr, layer_name, filename_prefix="attention_group"):
+    """
+    Aggregates and visualizes attention weights by group (e.g., persona, variation).
+    Pads attention matrices to the max seq_len in the group.
+    """
+    from collections import defaultdict
+    group_dict = defaultdict(list)
+    for i, group in enumerate(getattr(activations, group_attr)):
+        attn = activations.activations[i][layer_name]
+        # attn shape: (batch, heads, seq_len, seq_len)
+        group_dict[group].append(attn)
+
+    for group, attn_list in group_dict.items():
+        # Find max seq_len for this group
+        seq_lens = [a[0][0].shape[-1] for a in attn_list]
+        max_seq_len = max(seq_lens)
+        heads = attn_list[0][0][0].shape[0]  # assumes all have same heads
+
+        padded_list = []
+        for a in attn_list:
+            attn = a[0][0]  # shape: (heads, seq_len, seq_len)
+            seq_len = attn.shape[-1]
+            if seq_len < max_seq_len:
+                # Pad to (heads, max_seq_len, max_seq_len)
+                pad_size = (0, max_seq_len - seq_len, 0, max_seq_len - seq_len)
+                attn = torch.nn.functional.pad(attn, pad_size, value=0)
+            padded_list.append(attn)
+        attn_tensor = torch.stack(padded_list)  # shape: (N, heads, max_seq_len, max_seq_len)
+        mean_attn = attn_tensor.mean(dim=0, keepdim=True)
+        # Use only the first max_seq_len tokens for visualization
+        visualize_attention(mean_attn, tokens[:max_seq_len], filename=f"{filename_prefix}_{group}.png")
+
 def visualize_attention(attention_weights, tokens, filename="attention_visualization.png"):
     """
     Visualizes attention weights as a heatmap.
@@ -39,7 +71,7 @@ def visualize_attention(attention_weights, tokens, filename="attention_visualiza
 
     # Assuming attention_weights is a tensor, let's average over attention heads.
     # Shape: (batch, heads, seq_len, seq_len)
-    attention_matrix = attention_weights.mean(dim=1).squeeze(0).cpu().numpy()
+    attention_matrix = attention_weights.mean(dim=1).squeeze(0).cpu().to(torch.float32).numpy()
 
     fig, ax = plt.subplots(figsize=(12, 10))
     cax = ax.matshow(attention_matrix, cmap='viridis')
@@ -192,7 +224,6 @@ def main():
 
                         env = GaimsEnv(game_config, agent_configs, game_state, agents)
                         obs, info = env.reset()
-                        raw_prompt = agents[0].format_prompt(obs[0])
 
                         context_copy = context.copy()
                         context_copy["state"][
@@ -201,10 +232,10 @@ def main():
                         context_copy["agent_persona"] = agents[0].persona
 
                         model_activations, matrix_action = env.gather_activaton(context)
-                        
+
+                        raw_prompt = agents[0].prompt_config.format_action_context(context)
                         tokenizer = agents[0].model.tokenizer
                         tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(raw_prompt))
-                        visualize_attention(attention_weights, tokens, filename=f"attention_{persona}_{game_flavor}.png")
 
                         activations.append(
                             model_activations,
@@ -216,12 +247,15 @@ def main():
 
                         env.close()
 
+    pkl.dump(activations, open("activations.pkl", "wb"))
+
     classify_activations(activations, "model.layers.23.mlp", "persona")
     classify_activations(activations, "model.layers.23.mlp", "variation")
     classify_activations(activations, "model.layers.23.mlp", "nash_eq_type")
     classify_activations(activations, "model.layers.23.mlp", "framing")
 
-    visualize_attention(activations, tokens, filename=f"attention_{persona}_{game_flavor}.png")
+
+
 
     env.close()
 class ProbeDataset(Dataset):

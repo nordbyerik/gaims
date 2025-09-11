@@ -32,12 +32,13 @@ class Agent():
         llm_repsonse, llm_repsonse_raw = self.model.observe(formatted_context, system_prompt=self.persona)
         log.info(f"**STEP** ==> LOGGED_AGENT: {self.name}, LOGGED_AGENT_MODEL: {self.model._identifier}, LOGGED_ACTION: OBSERVE, LOGGED_MESSAGE: {formatted_context}, LOGGED_RESPONSE: {llm_repsonse_raw}")
         self.observations.append(llm_repsonse) # TODO: Add better observation management      
+        formatted_context = self.persona + "\n" + formatted_context
         return {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_messages},
-            "response": {llm_response_raw},
+            "message": {formatted_context},
+            "response": {llm_repsonse_raw},
         }
 
     def observe_communication(self, context: Dict[str, Any]) -> None:
@@ -45,12 +46,14 @@ class Agent():
         llm_repsonse, llm_repsonse_raw = self.model.observe(formatted_context, system_prompt=self.persona)
         log.info(f"**STEP** ==> LOGGED_AGENT: {self.name}, LOGGED_AGENT_MODEL: {self.model._identifier}, LOGGED_ACTION: OBSERVE_COMMUNICATION, LOGGED_MESSAGE: {formatted_context}, LOGGED_RESPONSE: {llm_repsonse_raw}")
         self.observations.append(llm_repsonse) # TODO: Add better observation management
+        formatted_context = self.persona + "\n" + formatted_context
+
         return {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_messages},
-            "response": {llm_response_raw},
+            "message": {formatted_context},
+            "response": {llm_repsonse_raw},
         }
 
     def communicate(self, context: Dict[str, Any]) -> Message:
@@ -60,24 +63,26 @@ class Agent():
         llm_repsonse, llm_repsonse_raw = self.model.communicate(formatted_messages, system_prompt=self.persona)
         log.info(f"**STEP** ==> LOGGED_AGENT: {self.name}, LOGGED_AGENT_MODEL: {self.model._identifier}, LOGGED_ACTION: COMMUNICATE, LOGGED_MESSAGE: {formatted_messages}, LOGGED_RESPONSE: {llm_repsonse_raw}")
         message = Message(self.id, llm_repsonse.receiver, llm_repsonse.message)
+        formatted_context = self.persona + "\n" + formatted_context
+
         return message, {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_messages},
-            "response": {llm_response_raw},
+            "message": {formatted_context},
+            "response": {llm_repsonse_raw},
         }
 
     def act(self, context: Dict[str, Any]) -> Action:
         formatted_context, system_prompt = self.prompt_config.format_action_context(context)
-        formatted_context = formatted_context
         llm_repsonse, llm_repsonse_raw = self.model.act(formatted_context, system_prompt=self.persona)
         log.info(f"**STEP** ==> LOGGED_AGENT: {self.name}, LOGGED_AGENT_MODEL: {self.model._identifier}, LOGGED_ACTION: ACT, LOGGED_MESSAGE: {formatted_context}, LOGGED_RESPONSE: {llm_repsonse_raw}")
         action = Action(agent_id=self.id,action_id=llm_repsonse.action_id)
+        formatted_context = self.persona + "\n" + formatted_context
         return action, {
             "agent": {self.name},
             "agent_model": {self.model._identifier},
             "step": "communicate",
-            "message": {formatted_messages},
-            "response": {llm_response_raw},
+            "message": {formatted_context},
+            "response": {llm_repsonse_raw},
         }
